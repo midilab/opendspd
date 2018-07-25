@@ -1,0 +1,6 @@
+# arch linux
+sudo pip2 install psutil Cython
+sudo pip2 install pyliblo
+
+# debian and ubuntu based
+sudo apt-get install python2-psutil mididings python2-mididings
