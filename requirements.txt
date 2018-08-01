@@ -1,0 +1,15 @@
+appdirs==1.4.3
+certifi==2017.7.27.1
+Cython==0.25.2
+decorator==4.0.11
+opendsp==0.9.1
+packaging==16.8
+Pillow==2.8.1
+psutil==5.2.2
+pyliblo==0.10.0
+pyparsing==2.2.0
+pyserial==2.7
+pystache==0.5.4
+six==1.10.0
+tornado==4.1
+virtualenv==15.1.0
