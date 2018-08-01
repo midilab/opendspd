@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # OpenDSP Manager
@@ -15,8 +15,8 @@
 # GNU General Public License for more details.
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
-
-from opendspd import OpenDspCtrl
+#import opendspd
+from opendspd import opendspd
 
 if __name__ == '__main__':
 
@@ -30,8 +30,9 @@ if __name__ == '__main__':
     odsp.start_midi()
 
     # Choose App
-    odsp.start_app('plugmod_mixer')
+    #odsp.start_app('plugmod_mixer')
     #odsp.start_app('plugmod_ingen')
+    odsp.start_app('vcs')
 
     # Open default project
     #odsp.open_project("6")
