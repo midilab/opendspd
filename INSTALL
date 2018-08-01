@@ -1,3 +1,6 @@
+pip install -r requirements.txt
+pacman -S base-devel cmake git
+
 # arch linux
 sudo pip2 install psutil Cython
 sudo pip2 install pyliblo
