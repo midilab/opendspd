@@ -21,7 +21,7 @@ from opendspd import opendspd
 if __name__ == '__main__':
 
     # OpenDSPControl object for general environment managment
-    odsp = OpenDspCtrl()
+    odsp = opendspd.OpenDspCtrl()
 
     # Start Audio engine
     odsp.start_audio()
