@@ -1,5 +1,4 @@
 appdirs==1.4.3
-Cython==0.25.2
 decorator==4.0.11
 mididings==20120419
 numpy==1.13.0

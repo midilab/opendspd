@@ -16,7 +16,7 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
 import time, subprocess, os, glob
-import ConfigParser
+import configparser
 
 class vcs():
 
@@ -29,7 +29,7 @@ class vcs():
 
     def __init__(self, openDspCtrl):
         self.__odspd = openDspCtrl
-        self.__project_config = ConfigParser.ConfigParser()
+        self.__project_config = configparser.ConfigParser()
 
     def start(self):
         # start main mixer
@@ -50,20 +50,13 @@ class vcs():
     def load_project(self, project, bank):
         self.__project = str(project)
         self.__bank = bank
-        subprocess.call("xdotool key ctrl+n" ,shell=True)
+        subprocess.call("/usr/bin/xdotool key ctrl+n" ,shell=True)
         time.sleep(60)
-        #subprocess.call("xdotool key ctrl+p" ,shell=True)
+        #subprocess.call("/usr/bin/xdotool key ctrl+p" ,shell=True)
         #time.sleep(60)
 
     def save_project(self, project):
         pass
-
-    def clear_plugins(self):
-        self.__modhost.stdin.write('feature_enable processing 0\n')
-        self.__modhost.stdin.write('remove -1\n')
-        self.__modhost.stdin.write('feature_enable link 0\n')
-        #self.__modhost.stdin.write('midi_program_listen 1 1\n')
-        self.__modhost.stdin.write('feature_enable processing 2\n')
 
     def load_project_request(self, event):
         self.load_project(event.data2, 'FACTORY')

@@ -16,7 +16,7 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
 import time, subprocess, os, glob
-import ConfigParser
+import configparser
 
 class plugmod_mixer():
 
@@ -31,7 +31,7 @@ class plugmod_mixer():
 
     def __init__(self, openDspCtrl):
         self.__odspd = openDspCtrl
-        self.__project_config = ConfigParser.ConfigParser()
+        self.__project_config = configparser.ConfigParser()
 
     def start(self):
         # start main mixer

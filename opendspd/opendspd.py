@@ -101,8 +101,8 @@ class OpenDspCtrl:
     def start_audio(self):
         # /usr/bin/jackd -P50 -r -p32 -t2000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -S -Xseq (Raspberry PI2 onboard soundcard)
         # /usr/bin/jackd -R -P50 -p128 -t2000 -dalsa -dhw:CODEC -r48000 -p128 -n8 -Xseq (Behringer UCA202)
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dhw:CODEC', '-r48000', '-p256', '-n8', '-S', '-s', '-Xseq'], shell=False)
-        #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dhw:0,0', '-r48000', '-p256', '-n8', '-S', '-s', '-Xseq'], shell=False)
+        #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dhw:CODEC', '-r48000', '-p256', '-n8', '-S', '-s', '-Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dhw:0,0', '-r48000', '-p256', '-n8', '-S', '-s', '-Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p256', '-n3', '-S', '-s', '-Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p128', '-n8', '-S', '-s', '-Xraw'], shell=False)
         time.sleep(1)
@@ -117,7 +117,7 @@ class OpenDspCtrl:
         thread.start()
 
         # start ttymidi   
-        self.__ttymidi = subprocess.Popen(['/usr/local/bin/ttymidi', '-s', '/dev/ttyAMA0', '-b', '38400'], shell=False)
+        self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', '/dev/ttyAMA0', '-b', '38400'], shell=False)
         self.setRealtime(self.__ttymidi.pid)
 
         # connect midi cables
