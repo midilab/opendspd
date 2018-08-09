@@ -35,7 +35,7 @@ class plugmod_mixer():
 
     def start(self):
         # start main mixer
-        self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/local/bin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
+        self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
         #self.__ecasound = subprocess.Popen('/usr/local/bin/ecasound -c -R:/home/opendsp/.ecasound/ecasounrc', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd','ECASOUND_LOGFILE': '/home/opendsp/log', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
         time.sleep(2)
         
@@ -56,10 +56,12 @@ class plugmod_mixer():
         ##self.__ecasound = ECA_CONTROL_INTERFACE()
         ##self.__ecasound.command("cs-load '/home/opendsp/app/plugmod/mixer4.ecs'")
         ##self.__ecasound.command("start")
-        cmd = 'cs-load /home/opendsp/app/plugmod/mixer/' + model +'.ecs\n' 
-        self.__ecasound.stdin.write(cmd.encode('utf-8'))
+        cmd = 'cs-load /home/opendsp/app/plugmod/mixer/' + model + '.ecs\n'
+        self.__ecasound.stdin.write(cmd.encode())
+        self.__ecasound.stdin.flush()
         time.sleep(2)
         self.__ecasound.stdin.write(b'start\n')
+        self.__ecasound.stdin.flush()
         time.sleep(2)
         self.__odspd.setRealtime(self.__ecasound.pid)
 
@@ -69,6 +71,7 @@ class plugmod_mixer():
 
     def clear_mixer(self):
         self.__ecasound.stdin.write(b'stop\n')
+        self.__ecasound.stdin.flush()
 
     def load_plugin(self, plugin, plugin_type):
         mixer_input = ""
@@ -150,6 +153,7 @@ class plugmod_mixer():
         #self.__modhost.stdin.write(b'preset_load ' + str(instance_id) + ' file://' + self.__project_path + '/module/' + module + '/presets/bank_1.ttl#SPACESOUND\n')
         #self.__modhost.stdin.write(b'preset_save ' + str(instance_id) + ' "Preset test" ' + self.__project_path + '/' + 'module/ preset_' + str(instance_id) + '.ttl' + '\n')
         #preset_save 0 "My Preset" /home/user/.lv2/my-presets.lv2 mypreset.ttl
+
     def load_project(self, project, bank):
         self.__project = str(project)
         self.__bank = bank
