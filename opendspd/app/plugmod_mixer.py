@@ -24,7 +24,7 @@ class plugmod_mixer():
     __ecasound = None
     __odspc = None
 
-    __project_path = '/home/opendsp/app/plugmod'
+    __project_path = '/home/opendsp/data/plugmod'
     __project_config = None
     __project = None
     __bank = None
@@ -54,9 +54,9 @@ class plugmod_mixer():
         #model = self.__project_config.get(mixer, 'Model')
         
         ##self.__ecasound = ECA_CONTROL_INTERFACE()
-        ##self.__ecasound.command("cs-load '/home/opendsp/app/plugmod/mixer4.ecs'")
+        ##self.__ecasound.command("cs-load '/home/opendsp/data/plugmod/mixer4.ecs'")
         ##self.__ecasound.command("start")
-        cmd = 'cs-load /home/opendsp/app/plugmod/mixer/' + model + '.ecs\n'
+        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/' + model + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         time.sleep(2)
