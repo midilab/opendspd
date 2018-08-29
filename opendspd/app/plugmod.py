@@ -21,6 +21,7 @@ import configparser
 class plugmod():
 
     __ingen = []
+    __ingen_id = 0
     __ecasound = None
     __odspc = None
 
@@ -43,8 +44,6 @@ class plugmod():
     def load_project(self, project, bank):
         self.__project = str(project)
         self.__bank = bank
-        self.clear_modules()
-        self.clear_mixer()
 
         # list all <project>_*, get first one
         project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
@@ -53,13 +52,14 @@ class plugmod():
 
         # multi or single patch?
         # if its multi start ingen for midi splitter
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', self.__project_path + '/module/midi_splitter.ingen'])
-        self.__odspd.setRealtime(self.__ingen.pid)
+        self.__ingen[self.__ingen_id] = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', self.__project_path + '/module/midi_splitter.ingen'])
+        self.__odspd.setRealtime(self.__ingen[self.__ingen_id].pid)
+        self.__ingen_id = self.__ingen_id + 1
         time.sleep(5)
         subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:control'], shell=False)
 
         # is there a load mixer request?
-        if 'mixer' in config self.__project_config:
+        if 'Mixer' in self.__project_config:
             # load mixer and all modules related to each channel config. channelX, sendA/sendB, master 
             self.load_mixer(self.__project_config)
         else:
@@ -78,7 +78,7 @@ class plugmod():
         self.__odspd.setRealtime(self.__ecasound.pid)
         
         # load mixer config and start him
-        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/' + config['mixer']['model'] + '.ecs\n'
+        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/' + config['Mixer']['Model'] + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         time.sleep(2)
@@ -90,32 +90,34 @@ class plugmod():
         subprocess.call(['/usr/bin/jack_connect', 'alsa_midi:ecasound (in)', 'OpenDSP:out_1'], shell=False)
         
         # load and connect all modules
-        for path in config['mixer']:
+        for path in config['Mixer']:
             if 'channel' in path:
-				print("loading channel module: " + config['mixer'][path])
-				output_port = "mixer:channel_" + str(path[-1])
+                print("loading channel module: " + config['Mixer'][path])
+                output_port = "mixer:channel_" + str(path[-1])
                 input_port = None
+                self.load_module(config[config['Mixer'][path]], output_port, input_port)
             elif 'send' in path:
-                print("loading send module: " + config['mixer'][path])
+                print("loading send module: " + config['Mixer'][path])
                 output_port = "mixer:return_" + str(path[-1])
                 input_port = "mixer:send_" + str(path[-1])
+                self.load_module(config[config['Mixer'][path]], output_port, input_port)
             elif 'master' in path:
-                #print("loading master module: " + config['mixer'][path])
+                #print("loading master module: " + config['Mixer'][path])
                 #output_port = "mixer:master_" + str(1)
                 #input_port = "mixer:master_" + str(1)
-                return
-            self.load_module(config[config['mixer'][path]], output_port, input_port)
+                #self.load_module(config[config['Mixer'][path]], output_port, input_port)
+                pass
         
     def clear_mixer(self):
-		# also finish ecasound instance
+        # also finish ecasound instance
         self.__ecasound.stdin.write(b'stop\n')
         self.__ecasound.stdin.flush()
 
     def load_module(self, config, output_port, input_port):
-        module = config['module']
-        midi_channel = config['channel']
-        bank = config['bank']
-        program = config['program']
+        module = config['Module']
+        midi_channel = config['Channel']
+        bank = config['Bank']
+        program = config['Program']
 
         # one mod-host per module instance to get advantage over multi core processors
         # before call a new host-mod instance confirm it we doesnt already has one for the matter... if we do have just clear and load new module schema
@@ -123,19 +125,19 @@ class plugmod():
         
         # start lv2 host 
         #self.__ingen = subprocess.Popen(['/usr/bin/ingen -e -d -u `pidof jackd` /home/opendsp/ingen_desk.ingen'])
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', self.__project_path + '/module/' + module + '.ingen'])
-        self.__odspd.setRealtime(self.__ingen.pid)
+        self.__ingen[self.__ingen_id] = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', self.__project_path + '/module/' + module + '.ingen'])
+        self.__odspd.setRealtime(self.__ingen[self.__ingen_id].pid)
         time.sleep(5)
         
         # for multi config get midi from midi splitter
-        subprocess.call('/usr/bin/jack_connect ingen:event_out_' + midi_channel + ' ingen-01:control', shell=True)
+        subprocess.call('/usr/bin/jack_connect ingen:event_out_' + midi_channel + ' ingen-0' + str(self.__ingen_id) + ':control', shell=True)
         # single mode? get midi data from OpenDSP midi in
-        #subprocess.call('/usr/bin/jack_connect OpenDSP:out_1 ingen-01:control', shell=True)
+        #subprocess.call('/usr/bin/jack_connect OpenDSP:out_1 ingen-0' + str(self.__ingen_id) + ':control', shell=True)
 
         # if output_port != None:
         # connect to specified output_port
-        subprocess.call('/usr/bin/jack_connect ingen-01:audio_out_1 ' + output_port, shell=True)
-        #subprocess.call('/usr/bin/jack_connect ingen-01:audio_out_2 ' + output_port, shell=True)
+        subprocess.call('/usr/bin/jack_connect ingen-0' + str(self.__ingen_id) + ':audio_out_1 ' + output_port, shell=True)
+        #subprocess.call('/usr/bin/jack_connect ingen-0' + str(self.__ingen_id) + ':audio_out_2 ' + output_port, shell=True)
         # else:
         # connect to default output_port
         ##subprocess.call('/usr/bin/jack_connect ingen-01:audio_out_1 ' + default??, shell=True)
@@ -145,9 +147,10 @@ class plugmod():
         # connect to specified input_port
         # else:
         # connect to default input_port
+        self.__ingen_id = self.__ingen_id + 1
         
     def clear_modules(self):
-		# clear and terminate all ingen instances
+        # clear and terminate all ingen instances
         pass
 
     def load_project_request(self, event):
