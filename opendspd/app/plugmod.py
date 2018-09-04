@@ -54,7 +54,6 @@ class plugmod():
         self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a', '-d', self.__project_path + '/module/classics.ingen'])
         self.__odspd.setRealtime(self.__ingen.pid)
         time.sleep(5)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:control'], shell=False)
 
         # start main mixer
         self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
@@ -72,13 +71,19 @@ class plugmod():
         time.sleep(4)
         
         # connect opendsp midi out into ecasound midi in 
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'alsa_midi:ecasound (in)'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_15', 'alsa_midi:ecasound (in)'], shell=False)
         
         # connect ingen outputs to mixer
         subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_1', 'mixer:channel_1'], shell=False)
         subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_2', 'mixer:channel_2'], shell=False)
         subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_3', 'mixer:channel_3'], shell=False)
         subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_4', 'mixer:channel_4'], shell=False)
+        
+        # connect midi input to ingen modules
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:channel_1'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_2', 'ingen:channel_2'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_3', 'ingen:channel_3'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_4', 'ingen:channel_4'], shell=False)
 
     def save_project(self, project):
         pass
