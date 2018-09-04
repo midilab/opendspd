@@ -62,8 +62,8 @@ class plugmod():
         time.sleep(2)
         self.__odspd.setRealtime(self.__ecasound.pid)
         
-        # load mixer config and start him
-        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/' + config['Mixer']['Model'] + '.ecs\n'
+        # load mixer config 
+        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/mixer422.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         time.sleep(2)
