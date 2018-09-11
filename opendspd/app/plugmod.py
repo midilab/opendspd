@@ -18,6 +18,9 @@
 import time, subprocess, os, glob
 import configparser
 
+# MIDI Support
+from mididings import *
+
 class plugmod():
 
     __ingen = None
@@ -41,7 +44,7 @@ class plugmod():
     ]
 
     def get_midi_processor(self):
-        return __midi_processor            
+        return self.__midi_processor            
 
     def __init__(self, openDspCtrl):
         self.__odspd = openDspCtrl
