@@ -43,6 +43,8 @@ class OpenDspCtrl:
     __app_name = None
     __app_midi_processor = None
     
+    __midi_listener_thread = None
+    
     def __init__(self):
         # before we go singleton, lets make our daemon realtime 
         self.setRealtime(os.getpid())
@@ -107,24 +109,18 @@ class OpenDspCtrl:
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p128', '-n8', '-S', '-s', '-Xraw'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__jack.pid, 2)
-        time.sleep(2)
  
     def start_midi(self):
         # start mididings and a thread for midi input listening
         config(backend='jack-rt', client_name='OpenDSP', out_ports = 16)
-        thread = threading.Thread(target=self.midi_listener, args=())
-        thread.daemon = True
-        thread.start()
+        self.__midi_listener_thread = threading.Thread(target=self.midi_listener, args=())
+        self.__midi_listener_thread.daemon = True
 
         # start ttymidi   
         self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', '/dev/ttyAMA0', '-b', '38400'], shell=False)
+        time.sleep(1)
         self.setRealtime(self.__ttymidi.pid)
-        time.sleep(2)
-        
-        # connect midi cables
-        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
-        #subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ttymidi:MIDI_out'], shell=False)
-		
+
     def load_app(self, event):
         pass
 
@@ -134,4 +130,11 @@ class OpenDspCtrl:
         app_class = getattr(module, app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
+        
+        self.__midi_listener_thread.start()
+        time.sleep(1)
+        
+        # connect midi cables
+        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
+        
         self.__app.start()
