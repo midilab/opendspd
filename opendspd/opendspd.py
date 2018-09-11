@@ -41,6 +41,7 @@ class OpenDspCtrl:
 	# Loaded app if any
     __app = None
     __app_name = None
+    __app_midi_processor = None
     
     def __init__(self):
         # before we go singleton, lets make our daemon realtime 
@@ -89,11 +90,7 @@ class OpenDspCtrl:
                     # CC 115 Channel 16, save current app project as...
                     115: Process(self.app_save_project_request)
                 }),
-                #Filter(PROGRAM) >> Process(self.app_program_change)
-                ChannelFilter(1) >> Filter(NOTE, PROGRAM, CTRL) >> Port(1),
-                ChannelFilter(2) >> Filter(NOTE, PROGRAM, CTRL) >> Port(2),
-                ChannelFilter(3) >> Filter(NOTE, PROGRAM, CTRL) >> Port(3),
-                ChannelFilter(4) >> Filter(NOTE, PROGRAM, CTRL) >> Port(4),
+                self.__app_midi_processor,
             ]
         )
 
@@ -136,4 +133,5 @@ class OpenDspCtrl:
         module = importlib.import_module('opendspd.app.' + app_name)
         app_class = getattr(module, app_name)
         self.__app = app_class(self.__singleton__)
+        self.__app_midi_processor = self.__app.get_midi_processor()
         self.__app.start()
