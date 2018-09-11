@@ -71,22 +71,22 @@ class plugmod():
             self.load_mixer(self.__mixer_model)
         
         # load plugin host    
-        self.load_plugin_host('classics')
+        self.load_plugin_host('plugmod_electronic')
         
     def save_project(self, project):
         pass
 
     def load_plugin_host(self, project_name):
         # start main lv2 host. ingen
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a', '-d', self.__project_path + '/module/' + project_name + '.ingen'])
+        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a', '-d', self.__project_path + '/' + project_name + '.ingen'])
         self.__odspd.setRealtime(self.__ingen.pid)
         time.sleep(5)
         
         # connect midi input to ingen modules
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:channel_1'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_2', 'ingen:channel_2'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_3', 'ingen:channel_3'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_4', 'ingen:channel_4'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:event_in_1'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_2', 'ingen:event_in_2'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_3', 'ingen:event_in_3'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_4', 'ingen:event_in_4'], shell=False)
         
         if self.__mixer_mode == 'internal':
             # connect ingen outputs to mixer
