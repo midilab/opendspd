@@ -19,6 +19,9 @@ import os, sys, time, subprocess, threading, importlib
 # MIDI Support
 from mididings import *
 
+# Jack support
+import jack
+
 # Main definitions
 #USER_HOME = "/home/opendsp/user_data"
 #USER_DATA = "/home/opendsp/session_data"
@@ -36,6 +39,7 @@ class OpenDspCtrl:
   
     # Subprocess dependencies objects
     __jack = None
+    __jack_client = None
     __ttymidi = None  
 
 	# Loaded app if any
@@ -46,7 +50,7 @@ class OpenDspCtrl:
     __midi_processor_thread = None
     
     def __init__(self):
-        # before we go singleton, lets make our daemon realtime 
+        # before we go singleton, lets make our daemon realtime priorized
         self.setRealtime(os.getpid())
         # singleton him
         if OpenDspCtrl.__singleton__:
@@ -92,23 +96,36 @@ class OpenDspCtrl:
                     # CC 115 Channel 16, save current app project as...
                     115: Process(self.app_save_project_request)
                 }),
+                # reserved for app midi proc
                 self.__app_midi_processor,
             ]
         )
 
+    def osc_processor(self):
+        pass
+
+    def keyboard_processor(self):
+        pass
+
     def run_manager(self):
         while True:
+            # check for new usb midi devices
+            #self.__jack_client.get_ports(is_midi=True, is_output=True)
+            #[jack.MidiPort('alsa_midi:Midi Through Port-0 (out)'), jack.MidiPort('ttymidi:MIDI_in'), jack.MidiPort('OpenDSP:out_1'), jack.MidiPort('OpenDSP:out_2'), jack.MidiPort('OpenDSP:out_3'), jack.MidiPort('OpenDSP:out_4'), jack.MidiPort('OpenDSP:out_5'), jack.MidiPort('OpenDSP:out_6'), jack.MidiPort('OpenDSP:out_7'), jack.MidiPort('OpenDSP:out_8'), jack.MidiPort('OpenDSP:out_9'), jack.MidiPort('OpenDSP:out_10'), jack.MidiPort('OpenDSP:out_11'), jack.MidiPort('OpenDSP:out_12'), jack.MidiPort('OpenDSP:out_13'), jack.MidiPort('OpenDSP:out_14'), jack.MidiPort('OpenDSP:out_15'), jack.MidiPort('OpenDSP:out_16'), jack.MidiPort('alsa_midi:ecasound (out)'), jack.MidiPort('ingen:notify')]
+            #self.__jack_client.connect('novation:output_1', 'OpenDSP:in_1')
             time.sleep(500)
 
     def start_audio(self):
         # /usr/bin/jackd -P50 -r -p32 -t2000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -S -Xseq (Raspberry PI2 onboard soundcard)
         # /usr/bin/jackd -R -P50 -p128 -t2000 -dalsa -dhw:CODEC -r48000 -p128 -n8 -Xseq (Behringer UCA202)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:CODEC', '-r48000', '-p256', '-n3', '-Xseq'], shell=False)
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-Imod-midi-merger', '-P50', '-t3000', '-dalsa', '-dhw:0,0', '-r48000', '-p256', '-n8', '-Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:0,0', '-r48000', '-p256', '-n8', '-Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p256', '-n3', '-S', '-s', '-Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p128', '-n8', '-S', '-s', '-Xraw'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__jack.pid, 2)
+        
+        self.__jack_client = jack.Client('opendspd')
  
     def start_midi(self):
         # start mididings and a thread for midi input listening
@@ -135,6 +152,6 @@ class OpenDspCtrl:
         time.sleep(1)
         
         # connect midi cables
-        subprocess.call(['/usr/bin/jack_connect', 'mod-midi-merger:out', 'OpenDSP:in_1'], shell=False)
+        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
         
         self.__app.start()

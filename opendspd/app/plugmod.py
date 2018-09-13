@@ -24,6 +24,7 @@ from mididings import *
 class plugmod():
 
     __ingen = None
+    __ingen_socket = None
     __ecasound = None
     __odspc = None
 
@@ -31,6 +32,7 @@ class plugmod():
     __project_config = None
     __project = None
     __bank = None
+    __project_bundle = None
     
     __mixer_mode = 'internal' # 'external'
     __mixer_model = 'mixer422'
@@ -51,36 +53,54 @@ class plugmod():
         self.__project_config = configparser.ConfigParser()
 
     def start(self):
+        # get user config data
+        # list all <project>_*, get first one
+        #project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
+        # read file
+        #self.__project_config.read(project_file[0])
+        
+        # start main lv2 host. ingen
+        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a')
+        #time.sleep(1)
+        self.__odspd.setRealtime(self.__ingen.pid)
+        
+        if os.path.exists("/tmp/ingen.sock"):
+            self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+            self.__ingen_socket.connect("/tmp/ingen.sock")
+        else:
+            print("Couldn't Connect to ingen socket!")
+    
+        # start main mixer?
+        if self.__mixer_mode == 'internal':
+            self.load_mixer(self.__mixer_model)
+        
         #self.load_project(0, 'FACTORY')
         self.load_project(1, 'FACTORY')
 
     def stop(self):
+        #client.close()
         pass
 
     def load_project(self, project, bank):
         self.__project = str(project)
         self.__bank = bank
 
+        # get project name by prefix number
         # list all <project>_*, get first one
-        #project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
-        # read file
-        #self.__project_config.read(project_file[0])
-
-        # start main mixer?
-        if self.__mixer_mode == 'internal':
-            self.load_mixer(self.__mixer_model)
+        project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
+        self.__project_bundle = project_file[0]
         
-        # load plugin host    
-        self.load_plugin_host('plugmod_electronic')
+        # send load bundle request and also unload old bundle in case we have anything loaded
+        ## Load /old.lv2
+        #data = 'a patch:Put ; patch:subject </> ; patch:body [ ingen:loadedBundle <file:///old.lv2/> ] .\0'
+        data = 'a patch:Put ; patch:subject </> ; patch:body [ ingen:loadedBundle <file:///' + self.__project_path + '/' + self.__project_bundle + '/> ] .\0'
         
-    def save_project(self, project):
-        pass
+        # Replace /old.lv2 with /new.lv2
+        #data = 'a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
 
-    def load_plugin_host(self, project_name):
-        # start main lv2 host. ingen
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a', '-d', self.__project_path + '/' + project_name + '.ingen'])
-        self.__odspd.setRealtime(self.__ingen.pid)
-        time.sleep(5)
+        # send load bundle command
+        self.__ingen_socket.send(data.encode('utf-8'))
+        time.sleep(4)
         
         # connect midi input to ingen modules
         subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_1', 'ingen:event_in_1'], shell=False)
@@ -100,6 +120,10 @@ class plugmod():
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_2', 'system:playback_2'], shell=False)
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_3', 'system:playback_3'], shell=False)
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_4', 'system:playback_4'], shell=False)
+
+        
+    def save_project(self, project):
+        pass
 
     def load_mixer(self, config):
         # its part of plugmod config, you use as virtual mixer or direct analog output
