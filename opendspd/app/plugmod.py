@@ -15,7 +15,7 @@
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
-import time, subprocess, os, glob
+import time, subprocess, os, socket, glob
 import configparser
 
 # MIDI Support
@@ -60,13 +60,20 @@ class plugmod():
         #self.__project_config.read(project_file[0])
         
         # start main lv2 host. ingen
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-a')
-        #time.sleep(1)
+        # clean his environment
+        for sock in glob.glob("/tmp/ingen.sock*"):
+            os.remove(sock)
+        if os.path.exists("~/.config/ingen/options.ttl"): 
+            os.remove("~/.config/ingen/options.ttl")
+        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
         self.__odspd.setRealtime(self.__ingen.pid)
+        time.sleep(2)
         
         if os.path.exists("/tmp/ingen.sock"):
-            self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-            self.__ingen_socket.connect("/tmp/ingen.sock")
+            #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            #self.__ingen_socket.connect("/tmp/ingen.sock")
+            self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.__ingen_socket.connect(("localhost", 16180))
         else:
             print("Couldn't Connect to ingen socket!")
     
@@ -92,14 +99,18 @@ class plugmod():
         
         # send load bundle request and also unload old bundle in case we have anything loaded
         ## Load /old.lv2
-        #data = 'a patch:Put ; patch:subject </> ; patch:body [ ingen:loadedBundle <file:///old.lv2/> ] .\0'
-        data = 'a patch:Put ; patch:subject </> ; patch:body [ ingen:loadedBundle <file:///' + self.__project_path + '/' + self.__project_bundle + '/> ] .\0'
-        
+        # the idea: create a graph block on each track add request.
+        # create audio output, audio input, midi output and midi input
+        #patch:sequenceNumber "1"^^xsd:int ;
+        data = '[] a patch:Copy ; patch:subject <file://' + self.__project_bundle + '/> ; patch:destination </main> .\0'
+    
         # Replace /old.lv2 with /new.lv2
-        #data = 'a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
+        #data = '[] a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
 
         # send load bundle command
         self.__ingen_socket.send(data.encode('utf-8'))
+        resp = self.__ingen_socket.recv(2048)
+        print('Received ' + repr(resp))
         time.sleep(4)
         
         # connect midi input to ingen modules
@@ -139,7 +150,7 @@ class plugmod():
         time.sleep(1)
         self.__ecasound.stdin.write(b'start\n')
         self.__ecasound.stdin.flush()
-        #time.sleep(4)
+        time.sleep(2)
 
         # connect opendsp midi out into ecasound midi in 
         subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_15', 'alsa_midi:ecasound (in)'], shell=False)
