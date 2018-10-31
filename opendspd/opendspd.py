@@ -13,8 +13,40 @@
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
+# interface idea
+# 8 generic buttons
+# 1 select page button (hold while use general buttons to select the page and release it)
+# 1 do it button(enter)
+# increment and decrement buttons
+
+# save and load button(for app project)
+# use numerical usb keypad as case for interface
+
+# use cases on opendsp:
+#1) load app
+#2) ...
+
+# use cases on app(generic)
+#0) select data bank (factory, user, external0, external1)
+#1) load project
+#2) save project
+#3) new project
+#/data/plugmod/projects/1_technera
+#/data/plugmod/projects/2
+
+#4) plugmod load module on track channel(its limited by the amount of channels registred on mixer)
+#/data/plugmod/modules/1_moog
+#/data/plugmod/modules/2_808
+#/data/plugmod/modules/2_dx7
+
+# what modules needs?
+# sequential and numbered presets to be accessed via program change... it goes as long it can holds... bank+prog
+# default controller interface based on generics of opendsp
+
 # Common system tools
 import os, sys, time, subprocess, threading, importlib
+
+import configparser
 
 # MIDI Support
 from mididings import *
@@ -23,14 +55,12 @@ from mididings import *
 import jack
 
 # Main definitions
-#USER_HOME = "/home/opendsp/user_data"
-#USER_DATA = "/home/opendsp/session_data"
-#FACTORY_DATA = "/home/opendsp/factory_data"
+# Data bank paths
+USER_DATA = "/home/opendsp/data"
+EXTERNAL_DATA = "/home/opendsp/external"
 
 # Realtime Priority
 REALTIME_PRIO = 48
-#REALTIME_PRIO = 80
-#REALTIME_PRIO = 63
 
 class OpenDspCtrl:
 
@@ -49,6 +79,11 @@ class OpenDspCtrl:
     
     __midi_processor_thread = None
     
+    __project_config = None
+        
+    # Default data path
+    __data_path = USER_DATA
+    
     def __init__(self):
         # before we go singleton, lets make our daemon realtime priorized
         self.setRealtime(os.getpid())
@@ -56,48 +91,43 @@ class OpenDspCtrl:
         if OpenDspCtrl.__singleton__:
             raise OpenDspCtrl.__singleton__
         OpenDspCtrl.__singleton__ = self
+        self.__project_config = configparser.ConfigParser()
 
     def setRealtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
 
-    def app_load_project_request(self, event):
-        if ( self.__app_name == None ):
-            return None
-        return self.__app.load_project_request(event)
-
-    def app_save_project_request(self, event):
-        if ( self.__app_name == None ):
-            return None
-        return self.__app.save_project_request(event)
-
-    def app_load_next_project_request(self, event):
+    def load_config(self):
         pass
+        #self.__project_config.read(USER_DATA + '/system.cfg')
+        # audio setup
+        # midi setup
 
-    def app_load_previous_project_request(self, event):
-        pass
-
-    def app_program_change(self, event):
-        if ( self.__app_name == None ):
-            return None
-        return self.__app.program_change(event)
-
+    def midi_processor_queue(self, event):
+        #event.value
+        for case in switch(event.ctrl):
+            if case(119):
+                #LOAD_APP
+                break
+            if case(118):
+                #LOAD_APP_PROJECT
+                break
+            if case(117):
+                #LOAD_APP_NEXT_PROJECT
+                break
+            if case(116):
+                #LOAD_APP_PREV_PROJECT
+                break
+            if case(115):
+                #LOAD_APP_SAVE_AS
+                break
+        
     def midi_processor(self):
         run(
-            [ 
-                ChannelFilter(16) >> Filter(CTRL) >> CtrlSplit({
-                    # CC 119 Channel 16: load a app
-                    119: Process(self.load_app),
-                    # CC 118 Channel 16: load a app project
-                    118: Process(self.app_load_project_request),
-                    # CC 117 Channel 16, load next app project
-                    117: Process(self.app_load_next_project_request),
-                    # CC 116 Channel 16, load previous app project
-                    116: Process(self.app_load_previous_project_request),
-                    # CC 115 Channel 16, save current app project as...
-                    115: Process(self.app_save_project_request)
-                }),
-                # reserved for app midi proc
+            [
+                # app midi processing
                 self.__app_midi_processor,
+                # opendsp midi controlled via cc messages on channel 16 
+                ChannelFilter(16) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue)            
             ]
         )
 
@@ -108,6 +138,10 @@ class OpenDspCtrl:
         pass
 
     def run_manager(self):
+        
+        # connect midi ports
+        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
+
         while True:
             # check for new usb midi devices
             #self.__jack_client.get_ports(is_midi=True, is_output=True)
@@ -119,13 +153,13 @@ class OpenDspCtrl:
         # /usr/bin/jackd -P50 -r -p32 -t2000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -S -Xseq (Raspberry PI2 onboard soundcard)
         # /usr/bin/jackd -R -P50 -p128 -t2000 -dalsa -dhw:CODEC -r48000 -p128 -n8 -Xseq (Behringer UCA202)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:CODEC', '-r48000', '-p256', '-n3', '-Xseq'], shell=False)
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:0,0', '-r48000', '-p256', '-n8', '-Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50 -t3000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p256', '-n3', '-S', '-s', '-Xseq'], shell=False)
         #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p128', '-n8', '-S', '-s', '-Xraw'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__jack.pid, 2)
-        
-        self.__jack_client = jack.Client('opendspd')
+        # start our manager client
+        self.__jack_client = jack.Client('odsp_manager')
  
     def start_midi(self):
         # start mididings and a thread for midi input listening
@@ -133,13 +167,10 @@ class OpenDspCtrl:
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
         self.__midi_processor_thread.daemon = True
 
-        # start ttymidi   
+        # start ttymidi (only need for specific platforms, how do we handle this?)  
         self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', '/dev/ttyAMA0', '-b', '38400'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__ttymidi.pid)
-
-    def load_app(self, event):
-        pass
 
     def start_app(self, app_name):
         self.__app_name = app_name
@@ -150,8 +181,5 @@ class OpenDspCtrl:
         
         self.__midi_processor_thread.start()
         time.sleep(1)
-        
-        # connect midi cables
-        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
-        
+ 
         self.__app.start()

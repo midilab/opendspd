@@ -16,7 +16,6 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
 import time, subprocess, os, socket, glob
-import configparser
 
 # MIDI Support
 from mididings import *
@@ -28,14 +27,16 @@ class plugmod():
     __ecasound = None
     __odspc = None
 
-    __project_path = '/home/opendsp/data/plugmod'
-    __project_config = None
+    __project_path = 'plugmod'
     __project = None
     __bank = None
     __project_bundle = None
-    
+
+    # internal mixer mode use ecasound as main virtual mixing console
+    # external mixer mode directs each module output to his closest number on system output
     __mixer_mode = 'internal' # 'external'
     __mixer_model = 'mixer422'
+    #__mono_mode = true
 
     __midi_processor = [
         #Filter(PROGRAM) >> Process(self.app_program_change)
@@ -43,6 +44,7 @@ class plugmod():
         ChannelFilter(2) >> Filter(NOTE, PROGRAM, CTRL) >> Port(2) >> Channel(1),
         ChannelFilter(3) >> Filter(NOTE, PROGRAM, CTRL) >> Port(3) >> Channel(1),
         ChannelFilter(4) >> Filter(NOTE, PROGRAM, CTRL) >> Port(4) >> Channel(1),
+        ChannelFilter(15) >> Filter(CTRL) >> Port(5) >> Channel(1), # for mixer cc control
     ]
 
     def get_midi_processor(self):
@@ -50,15 +52,8 @@ class plugmod():
 
     def __init__(self, openDspCtrl):
         self.__odspd = openDspCtrl
-        self.__project_config = configparser.ConfigParser()
 
     def start(self):
-        # get user config data
-        # list all <project>_*, get first one
-        #project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
-        # read file
-        #self.__project_config.read(project_file[0])
-        
         # start main lv2 host. ingen
         # clean his environment
         for sock in glob.glob("/tmp/ingen.sock*"):
@@ -94,7 +89,7 @@ class plugmod():
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.__project_path + '/' + str(project) + '_*')
+        project_file = glob.glob(self.__odspd.__data_path + '/' + self.__project_path + '/' + str(project) + '_*')
         self.__project_bundle = project_file[0]
         
         # send load bundle request and also unload old bundle in case we have anything loaded
@@ -144,7 +139,8 @@ class plugmod():
         self.__odspd.setRealtime(self.__ecasound.pid)
 
         # load mixer config 
-        cmd = 'cs-load /home/opendsp/data/plugmod/mixer/' + self.__mixer_model + '.ecs\n'
+        
+        cmd = 'cs-load ' + self.__odspd.__data_path + '/' + self.__project_path + '/mixer/' + self.__mixer_model + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         time.sleep(1)
