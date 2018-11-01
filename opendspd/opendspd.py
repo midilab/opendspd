@@ -78,6 +78,7 @@ class Manager:
     __app_midi_processor = None
     
     __midi_processor_thread = None
+    __midi_port_in = []
     
     __config = None
         
@@ -88,9 +89,9 @@ class Manager:
         # before we go singleton, lets make our daemon realtime priorized
         self.setRealtime(os.getpid())
         # singleton him
-        if OpenDspCtrl.__singleton__:
-            raise OpenDspCtrl.__singleton__
-        OpenDspCtrl.__singleton__ = self
+        if Manager.__singleton__:
+            raise Manager.__singleton__
+        Manager.__singleton__ = self
         self.__config = configparser.ConfigParser()
 
     def init(self):
@@ -163,17 +164,19 @@ class Manager:
     def keyboard_processor(self):
         pass
 
-    def checkNewMidiInput():
+    def checkNewMidiInput(self):
         jack_midi_lsp = self.__jack_client.get_ports(is_midi=True, is_output=True)
         for midi_port in jack_midi_lsp:
-            if midi_port not in 'OpenDSP' or midi_port not in 'ttymidi' or midi_port not in 'ingen' or midi_port not in 'alsa_midi:ecasound' or midi_port not in 'alsa_midi:Midi Through Port':
-                self.__jack_client.connect(midi_port, 'OpenDSP:in_1')
+            if midi_port.name in self.__midi_port_in or 'OpenDSP' in midi_port.name or 'ingen' in midi_port.name or 'alsa_midi:ecasound' in midi_port.name or 'alsa_midi:Midi Through' in midi_port.name:
+                continue
+            self.__jack_client.connect(midi_port.name, 'OpenDSP:in_1')
+            self.__midi_port_in.append(midi_port.name)
 
     def run_manager(self):
         while True:
             # check for new usb midi devices to auto connect into OpenDSP midi processor thread
             self.checkNewMidiInput()
-            time.sleep(5)
+            time.sleep(10)
 
     def start_audio(self):
         self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
@@ -181,9 +184,11 @@ class Manager:
         self.setRealtime(self.__jack.pid, 2)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
+        self.__jack_client.activate()
  
     def start_midi(self):
         # start mididings and a thread for midi input listening
+        # NOTE: midi processor only starts just before app starts so he can use __app.get_midi_processor()
         config(backend='jack-rt', client_name='OpenDSP', out_ports = 16)
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
         self.__midi_processor_thread.daemon = True
@@ -193,8 +198,6 @@ class Manager:
             self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
             time.sleep(1)
             self.setRealtime(self.__ttymidi.pid)
-            # connect midi port
-            self.__jack_client.connect('ttymidi:MIDI_in', 'OpenDSP:in_1')
 
     def start_app(self, app_name=None):
         self.__app_name = self.__config['app']['name']
