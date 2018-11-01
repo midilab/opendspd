@@ -62,7 +62,7 @@ EXTERNAL_DATA = "/home/opendsp/external"
 # Realtime Priority
 REALTIME_PRIO = 48
 
-class OpenDspCtrl:
+class Manager:
 
     # self instance for singleton control
     __singleton__ = None
@@ -92,6 +92,16 @@ class OpenDspCtrl:
             raise OpenDspCtrl.__singleton__
         OpenDspCtrl.__singleton__ = self
         self.__config = configparser.ConfigParser()
+
+    def init(self):
+        # load user config files
+        self.load_config()
+        # start Audio engine
+        self.start_audio()
+        # start MIDI engine
+        self.start_midi()
+        # start App
+        self.start_app()
 
     def setRealtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
@@ -153,17 +163,17 @@ class OpenDspCtrl:
     def keyboard_processor(self):
         pass
 
-    def run_manager(self):
-        
-        # connect midi ports
-        subprocess.call(['/usr/bin/jack_connect', 'ttymidi:MIDI_in', 'OpenDSP:in_1'], shell=False)
+    def checkNewMidiInput():
+        jack_midi_lsp = self.__jack_client.get_ports(is_midi=True, is_output=True)
+        for midi_port in jack_midi_lsp:
+            if midi_port not in 'OpenDSP' or midi_port not in 'ttymidi' or midi_port not in 'ingen' or midi_port not in 'alsa_midi:ecasound' or midi_port not in 'alsa_midi:Midi Through Port':
+                self.__jack_client.connect(midi_port, 'OpenDSP:in_1')
 
+    def run_manager(self):
         while True:
-            # check for new usb midi devices
-            #self.__jack_client.get_ports(is_midi=True, is_output=True)
-            #[jack.MidiPort('alsa_midi:Midi Through Port-0 (out)'), jack.MidiPort('ttymidi:MIDI_in'), jack.MidiPort('OpenDSP:out_1'), jack.MidiPort('OpenDSP:out_2'), jack.MidiPort('OpenDSP:out_3'), jack.MidiPort('OpenDSP:out_4'), jack.MidiPort('OpenDSP:out_5'), jack.MidiPort('OpenDSP:out_6'), jack.MidiPort('OpenDSP:out_7'), jack.MidiPort('OpenDSP:out_8'), jack.MidiPort('OpenDSP:out_9'), jack.MidiPort('OpenDSP:out_10'), jack.MidiPort('OpenDSP:out_11'), jack.MidiPort('OpenDSP:out_12'), jack.MidiPort('OpenDSP:out_13'), jack.MidiPort('OpenDSP:out_14'), jack.MidiPort('OpenDSP:out_15'), jack.MidiPort('OpenDSP:out_16'), jack.MidiPort('alsa_midi:ecasound (out)'), jack.MidiPort('ingen:notify')]
-            #self.__jack_client.connect('novation:output_1', 'OpenDSP:in_1')
-            time.sleep(500)
+            # check for new usb midi devices to auto connect into OpenDSP midi processor thread
+            self.checkNewMidiInput()
+            time.sleep(5)
 
     def start_audio(self):
         self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
@@ -183,6 +193,8 @@ class OpenDspCtrl:
             self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
             time.sleep(1)
             self.setRealtime(self.__ttymidi.pid)
+            # connect midi port
+            self.__jack_client.connect('ttymidi:MIDI_in', 'OpenDSP:in_1')
 
     def start_app(self, app_name=None):
         self.__app_name = self.__config['app']['name']
@@ -198,3 +210,7 @@ class OpenDspCtrl:
         
     def getDataPath(self):
         return self.__data_path
+
+    def getAppConfig(self):
+        return self.__config['app']
+        

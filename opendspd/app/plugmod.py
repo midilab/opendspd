@@ -27,10 +27,12 @@ class plugmod():
     __ecasound = None
     __odspc = None
 
-    __project_path = 'plugmod'
+    __app_path = 'plugmod'
     __project = None
     __bank = None
     __project_bundle = None
+    
+    __config = None
 
     # internal mixer mode use ecasound as main virtual mixing console
     # external mixer mode directs each module output to his closest number on system output
@@ -50,8 +52,9 @@ class plugmod():
     def get_midi_processor(self):
         return self.__midi_processor            
 
-    def __init__(self, openDspCtrl):
-        self.__odspd = openDspCtrl
+    def __init__(self, openDspManager):
+        self._odsp = openDspManager
+        self.__config = self._odsp.getAppConfig()
 
     def start(self):
         # start main lv2 host. ingen
@@ -61,7 +64,7 @@ class plugmod():
         if os.path.exists("~/.config/ingen/options.ttl"): 
             os.remove("~/.config/ingen/options.ttl")
         self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
-        self.__odspd.setRealtime(self.__ingen.pid)
+        self._odsp.setRealtime(self.__ingen.pid)
         time.sleep(2)
         
         if os.path.exists("/tmp/ingen.sock"):
@@ -89,7 +92,7 @@ class plugmod():
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.__odspd.getDataPath() + '/' + self.__project_path + '/' + str(project) + '_*')
+        project_file = glob.glob(self._odsp.getDataPath() + '/' + self.__app_path + '/' + str(project) + '_*')
         if len(project_file) > 0:
             self.__project_bundle = project_file[0]
         else:
@@ -139,11 +142,11 @@ class plugmod():
         self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
         #self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c -R:/home/opendsp/.ecasound/ecasounrc', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd','ECASOUND_LOGFILE': '/home/opendsp/log', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
         #time.sleep(2)
-        self.__odspd.setRealtime(self.__ecasound.pid)
+        self._odsp.setRealtime(self.__ecasound.pid)
 
         # load mixer config 
         
-        cmd = 'cs-load ' + self.__odspd.__data_path + '/' + self.__project_path + '/mixer/' + self.__mixer_model + '.ecs\n'
+        cmd = 'cs-load ' + self._odsp.getDataPath() + '/' + self.__app_path + '/mixer/' + self.__mixer_model + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         time.sleep(1)
