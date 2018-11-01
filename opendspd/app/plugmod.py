@@ -89,7 +89,7 @@ class plugmod():
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.__odspd.__data_path + '/' + self.__project_path + '/' + str(project) + '_*')
+        project_file = glob.glob(self.__odspd.getDataPath() + '/' + self.__project_path + '/' + str(project) + '_*')
         if len(project_file) > 0:
             self.__project_bundle = project_file[0]
         else:

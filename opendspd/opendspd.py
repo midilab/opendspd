@@ -166,7 +166,7 @@ class OpenDspCtrl:
             time.sleep(500)
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50 -t3000 -dalsa -dhw:' + __config['audio']['hardware'] + ' -r' + self.__config['audio']['rate'] + ' -p' + self.__config['audio']['buffer'] + ' -n' + self.__config['audio']['period'] + ' -Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__jack.pid, 2)
         # start our manager client
@@ -186,8 +186,8 @@ class OpenDspCtrl:
 
     def start_app(self, app_name=None):
         self.__app_name = self.__config['app']['name']
-        module = importlib.import_module('opendspd.app.' + app_name)
-        app_class = getattr(module, app_name)
+        module = importlib.import_module('opendspd.app.' + self.__app_name)
+        app_class = getattr(module, self.__app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
         # we wait the app midi processor metaprogramming data before start this thread
@@ -195,3 +195,6 @@ class OpenDspCtrl:
         time.sleep(1)
  
         self.__app.start()
+        
+    def getDataPath(self):
+        return self.__data_path
