@@ -79,7 +79,7 @@ class OpenDspCtrl:
     
     __midi_processor_thread = None
     
-    __project_config = None
+    __config = None
         
     # Default data path
     __data_path = USER_DATA
@@ -91,17 +91,33 @@ class OpenDspCtrl:
         if OpenDspCtrl.__singleton__:
             raise OpenDspCtrl.__singleton__
         OpenDspCtrl.__singleton__ = self
-        self.__project_config = configparser.ConfigParser()
+        self.__config = configparser.ConfigParser()
 
     def setRealtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
 
     def load_config(self):
-        pass
-        #self.__project_config.read(USER_DATA + '/system.cfg')
+        self.__config.read(USER_DATA + '/system.cfg')
         # audio setup
+        # video setup
         # midi setup
+        # app defaults
 
+        # if system config file does not exist, load default values
+        if len(self.__config) == 0:
+            # audio defaults
+            self.__config['audio']['rate'] = '48000'
+            self.__config['audio']['period'] = '8'
+            self.__config['audio']['buffer'] = '256'
+            self.__config['audio']['hardware'] = '0,0'
+            # video defaults
+            # midi setup
+            self.__config['midi']['onboard-uart'] = 'true'
+            self.__config['midi']['device'] = '/dev/ttyAMA0'
+            # app defaults
+            self.__config['app']['name'] = 'plugmod'
+            self.__config['app']['project'] = '1'
+                    
     def midi_processor_queue(self, event):
         #event.value
         for case in switch(event.ctrl):
@@ -150,12 +166,7 @@ class OpenDspCtrl:
             time.sleep(500)
 
     def start_audio(self):
-        # /usr/bin/jackd -P50 -r -p32 -t2000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -S -Xseq (Raspberry PI2 onboard soundcard)
-        # /usr/bin/jackd -R -P50 -p128 -t2000 -dalsa -dhw:CODEC -r48000 -p128 -n8 -Xseq (Behringer UCA202)
-        #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:CODEC', '-r48000', '-p256', '-n3', '-Xseq'], shell=False)
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50 -t3000 -dalsa -dhw:0,0 -r48000 -p256 -n8 -Xseq'], shell=False)
-        #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P48', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p256', '-n3', '-S', '-s', '-Xseq'], shell=False)
-        #self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P63', '-r', '-p256', '-t3000', '-dalsa', '-dplughw:0,0', '-r48000', '-p128', '-n8', '-S', '-s', '-Xraw'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50 -t3000 -dalsa -dhw:' + __config['audio']['hardware'] + ' -r' + self.__config['audio']['rate'] + ' -p' + self.__config['audio']['buffer'] + ' -n' + self.__config['audio']['period'] + ' -Xseq'], shell=False)
         time.sleep(1)
         self.setRealtime(self.__jack.pid, 2)
         # start our manager client
@@ -167,18 +178,19 @@ class OpenDspCtrl:
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
         self.__midi_processor_thread.daemon = True
 
-        # start ttymidi (only need for specific platforms, how do we handle this?)  
-        self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', '/dev/ttyAMA0', '-b', '38400'], shell=False)
-        time.sleep(1)
-        self.setRealtime(self.__ttymidi.pid)
+        # start ttymidi? (only if your hardware has onboard serial uart)
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
+            time.sleep(1)
+            self.setRealtime(self.__ttymidi.pid)
 
-    def start_app(self, app_name):
-        self.__app_name = app_name
+    def start_app(self, app_name=None):
+        self.__app_name = self.__config['app']['name']
         module = importlib.import_module('opendspd.app.' + app_name)
         app_class = getattr(module, app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
-        
+        # we wait the app midi processor metaprogramming data before start this thread
         self.__midi_processor_thread.start()
         time.sleep(1)
  

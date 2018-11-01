@@ -77,20 +77,24 @@ class plugmod():
             self.load_mixer(self.__mixer_model)
         
         #self.load_project(0, 'FACTORY')
-        self.load_project(1, 'FACTORY')
+        self.load_project(1)
 
     def stop(self):
         #client.close()
         pass
 
-    def load_project(self, project, bank):
+    def load_project(self, project):
         self.__project = str(project)
-        self.__bank = bank
+        #self.__bank = bank
 
         # get project name by prefix number
         # list all <project>_*, get first one
         project_file = glob.glob(self.__odspd.__data_path + '/' + self.__project_path + '/' + str(project) + '_*')
-        self.__project_bundle = project_file[0]
+        if len(project_file) > 0:
+            self.__project_bundle = project_file[0]
+        else:
+            # do what? create a new one?
+            pass    
         
         # send load bundle request and also unload old bundle in case we have anything loaded
         ## Load /old.lv2
@@ -126,7 +130,6 @@ class plugmod():
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_2', 'system:playback_2'], shell=False)
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_3', 'system:playback_3'], shell=False)
             subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_4', 'system:playback_4'], shell=False)
-
         
     def save_project(self, project):
         pass
