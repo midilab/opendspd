@@ -1,6 +1,8 @@
 # opendspd
 OpenDSP Service Core
 
+STILL UNDER DEVELOPMENT!
+
 OpenDSP is a small linux sub-distro aimed for a general DSP - Digital Signal Processing - on portable headless devices like ARM and Intel Computing.
   - Realtime kernel
   - DSP Core - Collection of basis apps for DSP used for OpenDSP Apps.
