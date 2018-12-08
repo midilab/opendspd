@@ -44,7 +44,7 @@
 # default controller interface based on generics of opendsp
 
 # Common system tools
-import os, sys, time, subprocess, threading, importlib
+import os, sys, time, subprocess, threading, importlib, glob
 
 import configparser
 
@@ -179,21 +179,15 @@ class Manager:
         pass
 
     def checkNewMidiInput(self):
-        jack_midi_lsp = self.__jack_client.get_ports(is_midi=True, is_output=True)
-        for midi_port in jack_midi_lsp:
-            if midi_port.name in self.__midi_port_in or 'OpenDSP' in midi_port.name or 'ingen' in midi_port.name or 'alsa_midi:ecasound' in midi_port.name or 'alsa_midi:Midi Through' in midi_port.name:
+        # new devices on raw midi layer?
+        for midi_device in glob.glob("/dev/midi*"):
+            if midi_device in self.__midi_devices:
                 continue
-            #self.__jack_client.connect(midi_port.name, 'OpenDSP:in_1')
-            #self.__midi_port_in.append(midi_port.name)
-
-            self.__midi_devices.append()
-'''
-        # start on-board midi? (only if your hardware has onboard serial uart)
-        if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', self.__config['midi']['device'], '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
+            midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
             time.sleep(1)
-            self.setRealtime(self.__onboard_midi.pid, 4)        
-'''        
+            self.setRealtime(self.__onboard_midi.pid, 4)  
+            self.__midi_devices.append(midi_device)
+            # we need to keep midi_device_proc
 
     def start_audio(self):
         self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False)
