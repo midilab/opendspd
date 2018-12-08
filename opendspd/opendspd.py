@@ -60,7 +60,7 @@ USER_DATA = "/home/opendsp/data"
 EXTERNAL_DATA = "/home/opendsp/external"
 
 # Realtime Priority
-REALTIME_PRIO = 48
+REALTIME_PRIO = 95
 
 class Manager:
 
@@ -70,7 +70,9 @@ class Manager:
     # Subprocess dependencies objects
     __jack = None
     __jack_client = None
-    __ttymidi = None  
+    __mididings = None
+    __onboard_midi = None 
+    __midi_devices = []  
 
 	# Loaded app if any
     __app = None
@@ -87,7 +89,7 @@ class Manager:
     
     def __init__(self):
         # before we go singleton, lets make our daemon realtime priorized
-        self.setRealtime(os.getpid())
+        self.setRealtime(os.getpid(), -4)
         # singleton him
         if Manager.__singleton__:
             raise Manager.__singleton__
@@ -101,11 +103,25 @@ class Manager:
         self.start_audio()
         # start MIDI engine
         self.start_midi()
-        # start App
+
+    def run_manager(self):
+        # start initial App
         self.start_app()
 
+        # start on-board midi? (only if your hardware has onboard serial uart)
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', self.__config['midi']['device'], '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
+            time.sleep(1)
+            self.setRealtime(self.__onboard_midi.pid, 4)        
+        
+        while True:
+            # check for new usb midi devices to auto connect into OpenDSP_RT midi processor port
+            self.checkNewMidiInput()
+            time.sleep(5)
+            
     def setRealtime(self, pid, inc=0):
-        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
 
     def load_config(self):
         self.__config.read(USER_DATA + '/system.cfg')
@@ -151,8 +167,6 @@ class Manager:
     def midi_processor(self):
         run(
             [
-                # app midi processing
-                self.__app_midi_processor,
                 # opendsp midi controlled via cc messages on channel 16 
                 ChannelFilter(16) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue)            
             ]
@@ -169,35 +183,32 @@ class Manager:
         for midi_port in jack_midi_lsp:
             if midi_port.name in self.__midi_port_in or 'OpenDSP' in midi_port.name or 'ingen' in midi_port.name or 'alsa_midi:ecasound' in midi_port.name or 'alsa_midi:Midi Through' in midi_port.name:
                 continue
-            self.__jack_client.connect(midi_port.name, 'OpenDSP:in_1')
-            self.__midi_port_in.append(midi_port.name)
+            #self.__jack_client.connect(midi_port.name, 'OpenDSP:in_1')
+            #self.__midi_port_in.append(midi_port.name)
 
-    def run_manager(self):
-        while True:
-            # check for new usb midi devices to auto connect into OpenDSP midi processor thread
-            self.checkNewMidiInput()
-            time.sleep(10)
+            self.__midi_devices.append()
+'''
+        # start on-board midi? (only if your hardware has onboard serial uart)
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', self.__config['midi']['device'], '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
+            time.sleep(1)
+            self.setRealtime(self.__onboard_midi.pid, 4)        
+'''        
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P50', '-t3000', '-dalsa', '-dhw:' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False)
         time.sleep(1)
-        self.setRealtime(self.__jack.pid, 2)
+        self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
         self.__jack_client.activate()
  
     def start_midi(self):
-        # start mididings and a thread for midi input listening
-        # NOTE: midi processor only starts just before app starts so he can use __app.get_midi_processor()
-        config(backend='jack-rt', client_name='OpenDSP', out_ports = 16)
+        # start mididings and a thread for midi input user control and feedback listening
+        config(backend='jack', client_name='OpenDSP')
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
         self.__midi_processor_thread.daemon = True
-
-        # start ttymidi? (only if your hardware has onboard serial uart)
-        if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
-            time.sleep(1)
-            self.setRealtime(self.__ttymidi.pid)
+        self.__midi_processor_thread.start()
 
     def start_app(self, app_name=None):
         self.__app_name = self.__config['app']['name']
@@ -205,15 +216,27 @@ class Manager:
         app_class = getattr(module, self.__app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
-        # we wait the app midi processor metaprogramming data before start this thread
-        self.__midi_processor_thread.start()
         time.sleep(1)
+        
+        # call mididings and set it realtime alog with jack - named OpenDSP_RT
+        # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
+        # add one more rule for our internal opendsp management
+        #ChannelFilter(16) >> Port(16), # for internal opendsp mangment
+        #mididings -R -c OpenDSP_RT -o 16 "Filter(NOTE, PROGRAM, CTRL) >> Port(1) >> Channel(1)"
+        rule = "[ " + self.__app.get_midi_processor() + ", ChannelFilter(16) >> Port(16) ]"
+        self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule], shell=False)
+        time.sleep(1)
+        self.setRealtime(self.__mididings.pid, 4)
+        time.sleep(1)
+        
+        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
+        self.__jack_client.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
  
         self.__app.start()
         
     def getDataPath(self):
         return self.__data_path
 
-    def getAppConfig(self):
+    def getAppParams(self):
         return self.__config['app']
         
