@@ -36,6 +36,10 @@ class plugmod(App):
     __visualizer = None
     __is_visual_on = False
     
+    # make use of vdisplay for user app manament via VNC and Xvfb
+    __virtual_desktop = False
+    __is_vdisplay_on = False
+    
     __project = None
     __bank = None
     
@@ -56,7 +60,10 @@ class plugmod(App):
             self.__mixer = self.params["mixer"]    
             
         if "visualizer" in self.params:   
-            self.__visualizer = self.params["visualizer"]   
+            self.__visualizer = self.params["visualizer"]  
+            
+        if "virtual_desktop" in self.params:
+            self.__virtual_desktop = self.params["virtual_desktop"]
 
         # start main lv2 host. ingen
         # clean environment, sometimes client creates a config file that mess with server later
@@ -99,7 +106,11 @@ class plugmod(App):
             time.sleep(20)
             subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
             self.__is_visual_on = True
-
+        
+        if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
+            projectm = self.odsp.start_virtual_display_app('/usr/bin/xterm -bg black -fg white -maximized')
+            self.__is_vdisplay_on = True
+            
         time.sleep(10)
 
     def manageAudioConnections(self):
