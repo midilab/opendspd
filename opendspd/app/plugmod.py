@@ -15,7 +15,7 @@
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
-import time, subprocess, os, socket, glob
+import time, subprocess, os, socket, glob, re
 
 # import abstract App class interface
 from . import App
@@ -29,27 +29,37 @@ class plugmod(App):
     __app_path = 'plugmod'
     __project_bundle = None
 
+    # addons
     # internal mixer mode use ecasound as main virtual mixing console
     # external mixer mode directs each module output to his mirroed number on system output
-    __mixer_mode = 'internal' # 'external'
-    __mixer_model = 'mixer422'
-    #__mono_mode = true
-
+    __mixer = None # external, no internal mixer is the default 'internal' # 'external'
+    __visualizer = None
+    __is_visual_on = False
+    
     __project = None
     __bank = None
     
+    __audio_port_out = []
+    __audio_port_in = []
+    __midi_port_in = []
+    
     def get_midi_processor(self):
         # realtime midi processing routing rules - based on mididings environment
-        self.__midi_processor = "ChannelFilter(" + str(1) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(1) >> Channel(1), ChannelFilter(" + str(2) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(2) >> Channel(1), ChannelFilter(" + str(3) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(3) >> Channel(1), ChannelFilter(" + str(4) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(4) >> Channel(1), ChannelFilter(" + str(15) + ") >> Filter(CTRL) >> Port(15) >> Channel(1)"
+        self.__midi_processor = "ChannelFilter(" + str(1) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(1) >> Channel(1), ChannelFilter(" + str(2) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(2) >> Channel(1), ChannelFilter(" + str(3) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(3) >> Channel(1), ChannelFilter(" + str(4) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(4) >> Channel(1)"
+        if self.__mixer != None:
+            self.__midi_processor = self.__midi_processor + ", ChannelFilter(" + str(15) + ") >> Filter(CTRL) >> Port(15) >> Channel(1)"
         return self.__midi_processor 
 
     def start(self):
 
-        self.__mixer_mode = self.params["mixer_mode"]
-        self.__mixer_model = self.params["mixer_model"]        
+        if "mixer" in self.params:
+            self.__mixer = self.params["mixer"]    
+            
+        if "visualizer" in self.params:   
+            self.__visualizer = self.params["visualizer"]   
 
         # start main lv2 host. ingen
-        # clean his environment
+        # clean environment, sometimes client creates a config file that mess with server later
         for sock in glob.glob("/tmp/ingen.sock*"):
             os.remove(sock)
         if os.path.exists("/home/opendsp/.config/ingen/options.ttl"): 
@@ -67,19 +77,83 @@ class plugmod(App):
             print("Couldn't Connect to ingen socket!")
     
         # start main mixer?
-        if self.__mixer_mode == 'internal':
-            self.load_mixer(self.__mixer_model)
-        elif self.__mixer_mode == 'external':
+        if self.__mixer != None:
+            self.load_mixer(self.__mixer)
+        else:
             pass            
         
-        #self.load_project(0, 'FACTORY')
         self.load_project(self.params["project"])
+        
+    def run(self):
+        # connect all the midi and audio from outside world to ingen world
+        # do it once on first run, then on eternal loop to check for new connections
+        self.manageAudioConnections()
+        self.manageMidiConnections()
+        
+        # do we want to start visualizer?
+        if self.__visualizer != None and self.__is_visual_on == False:
+            # for now only "projectm", so no check...
+            projectm = self.odsp.start_display_app('/usr/bin/projectM-jack')
+            self.odsp.setRealtime(projectm.pid, -50)
+            # wait projectm to comes up and them set it full screen
+            time.sleep(20)
+            subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
+            self.__is_visual_on = True
 
+        time.sleep(10)
+
+    def manageAudioConnections(self):
+        # filter data to get only ingen for outputs:
+        # outputs
+        jack_audio_lsp = self.jack.get_ports(name_pattern='ingen', is_audio=True, is_output=True)
+        for audio_port in jack_audio_lsp:
+            if audio_port.name in self.__audio_port_out:
+                continue
+            try:
+                # get the channel based on any number present on port name
+                channel = int(re.search(r'\d+', audio_port.name).group())     
+                if self.__mixer != None:
+                    self.jack.connect(audio_port.name, 'mixer:channel_' + str(channel))
+                else:
+                    self.jack.connect(audio_port.name, 'system:playback_' + str(channel))
+            except:
+                pass
+            self.__audio_port_out.append(audio_port.name)
+                
+        # inputs
+        jack_audio_lsp = self.jack.get_ports(name_pattern='ingen', is_audio=True, is_input=True)
+        for audio_port in jack_audio_lsp:
+            if audio_port.name in self.__audio_port_in:
+                continue
+            try:
+                # get the channel based on any number present on port name
+                channel = int(re.search(r'\d+', audio_port.name).group())    
+                self.jack.connect(audio_port.name, 'system:capture_' + str(channel))
+            except:
+                pass
+            self.__audio_port_in.append(audio_port.name)
+
+    def manageMidiConnections(self):  
+        # filter data to get only ingen:
+        # input
+        jack_midi_lsp = self.jack.get_ports(name_pattern='ingen', is_midi=True, is_input=True)
+        for midi_port in jack_midi_lsp:
+            if midi_port.name in self.__midi_port_in:
+                continue
+            try:
+                # get the channel based on any number present on port name
+                channel = int(re.search(r'\d+', midi_port.name).group())  
+                self.jack.connect(midi_port.name, 'OpenDSP:out_' + str(channel))
+            except:
+                pass
+            self.__midi_port_in.append(midi_port.name)
+            
     def stop(self):
         #client.close()
         pass
 
     def load_project(self, project):
+        data = ""
         self.__project = str(project)
         #self.__bank = bank
 
@@ -88,44 +162,24 @@ class plugmod(App):
         project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/' + str(project) + '_*')
         if len(project_file) > 0:
             self.__project_bundle = project_file[0]
+            # send load bundle request and also unload old bundle in case we have anything loaded
+            ## Load /old.lv2
+            # the idea: create a graph block on each track add request.
+            # create audio output, audio input, midi output and midi input??? do we???
+            #patch:sequenceNumber "1"^^xsd:int ;
+            data = '[] a patch:Copy ; patch:subject <file://' + self.__project_bundle + '/> ; patch:destination </main> .\0'
+            # Replace /old.lv2 with /new.lv2
+            #data = '[] a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
         else:
             # do what? create a new one?
-            pass    
+            data = ''
         
-        # send load bundle request and also unload old bundle in case we have anything loaded
-        ## Load /old.lv2
-        # the idea: create a graph block on each track add request.
-        # create audio output, audio input, midi output and midi input
-        #patch:sequenceNumber "1"^^xsd:int ;
-        data = '[] a patch:Copy ; patch:subject <file://' + self.__project_bundle + '/> ; patch:destination </main> .\0'
-    
-        # Replace /old.lv2 with /new.lv2
-        #data = '[] a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
-
-        # send load bundle command
+        # send initial command
         self.__ingen_socket.send(data.encode('utf-8'))
         resp = self.__ingen_socket.recv(2048)
         print('Received ' + repr(resp))
-        time.sleep(4)
-        
-        # connect midi input to ingen modules
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP_RT:out_1', 'ingen:event_in_1'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP_RT:out_2', 'ingen:event_in_2'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP_RT:out_3', 'ingen:event_in_3'], shell=False)
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP_RT:out_4', 'ingen:event_in_4'], shell=False)
-        
-        if self.__mixer_mode == 'internal':
-            # connect ingen outputs to mixer. todo: loop thru existent mixer channels inputs instead of hardcoded
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_1', 'mixer:channel_1'], shell=False)
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_2', 'mixer:channel_2'], shell=False)
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_3', 'mixer:channel_3'], shell=False)
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_4', 'mixer:channel_4'], shell=False)
-        elif self.__mixer_mode == 'external':
-            # connect ingen outputs to direct sound card output. todo: loop thru existent playback outputs instead of hardcoded
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_1', 'system:playback_1'], shell=False)
-            subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_2', 'system:playback_2'], shell=False)
-            #subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_3', 'system:playback_3'], shell=False)
-            #subprocess.call(['/usr/bin/jack_connect', 'ingen:audio_out_4', 'system:playback_4'], shell=False)
+        # who to wait for ingen to tell us we ready? sleep a default time for now
+        time.sleep(6)
         
     def save_project(self, project):
         pass
@@ -133,12 +187,10 @@ class plugmod(App):
     def load_mixer(self, config):
         # its part of plugmod config, you use as virtual mixer or direct analog output
         self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
-        #self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c -R:/home/opendsp/.ecasound/ecasounrc', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd','ECASOUND_LOGFILE': '/home/opendsp/log', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
-        #time.sleep(2)
+        time.sleep(1)
         self.odsp.setRealtime(self.__ecasound.pid)
 
-        # load mixer config 
-        
+        # load mixer config setup
         cmd = 'cs-load ' + self.odsp.getDataPath() + '/' + self.__app_path + '/mixer/' + self.__mixer_model + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
@@ -147,8 +199,10 @@ class plugmod(App):
         self.__ecasound.stdin.flush()
         time.sleep(2)
 
-        # connect opendsp midi out into ecasound midi in 
-        subprocess.call(['/usr/bin/jack_connect', 'OpenDSP:out_15', 'alsa_midi:ecasound (in)'], shell=False)
+        # connect opendsp midi out into ecasound midi in
+        self.jack.connect('OpenDSP_RT:out_15', 'alsa_midi:ecasound (in)')
+        self.jack.connect('system:playback_1', 'mixer:master_1')
+        self.jack.connect('system:playback_2', 'mixer:master_2')
         
     def clear_mixer(self):
         # also finish ecasound instance
@@ -156,10 +210,10 @@ class plugmod(App):
         self.__ecasound.stdin.flush()
 
     def load_project_request(self, event):
-        self.load_project(event.data2, 'FACTORY')
+        self.load_project(event.data2)
 
     def save_project_request(self, event):
-        self.save_project(event.data2, 'FACTORY')
+        self.save_project(event.data2)
 
     def program_change(self, event): #program, bank):
         pass

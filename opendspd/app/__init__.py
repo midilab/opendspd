@@ -4,33 +4,33 @@ class App(metaclass=ABCMeta):
     
     odsp = None
     params = None
-            
+                
     def __init__(self, openDspManager):
         self.odsp = openDspManager
         # set params
         self.params = self.odsp.getAppParams()
+        self.jack = self.odsp.getJackClient()
 
     @abstractmethod
     def start(self):
-        """ Little description
+        """ Get app ecosystem up and running
 
-        Parameters
-        ----------
-        param1 : str
-          Param 1 description
-        param2 : integer
-          Param 2 description
-
-        Returns
-        -------
-        An description of what it needs to return
+        Blah...
         """                     
         pass
  
     @abstractmethod
     def stop(self):
         pass
- 
+    
+    @abstractmethod
+    def run(self):
+        """ All the app lifecyle
+
+        This method is called inside a thread and it never returns
+        """                     
+        pass
+         
     @abstractmethod
     def load_project(self, project):
         pass
@@ -41,4 +41,4 @@ class App(metaclass=ABCMeta):
 
     @abstractmethod
     def get_midi_processor(self):
-        pass           
+        pass
