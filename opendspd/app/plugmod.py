@@ -138,12 +138,13 @@ class plugmod(App):
         # input
         jack_midi_lsp = self.jack.get_ports(name_pattern='ingen', is_midi=True, is_input=True)
         for midi_port in jack_midi_lsp:
+            
             if midi_port.name in self.__midi_port_in:
                 continue
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', midi_port.name).group())  
-                self.jack.connect(midi_port.name, 'OpenDSP:out_' + str(channel))
+                self.jack.connect('OpenDSP_RT:out_' + str(channel), midi_port.name)
             except:
                 pass
             self.__midi_port_in.append(midi_port.name)
