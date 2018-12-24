@@ -70,11 +70,9 @@ class Manager:
             raise Manager.__singleton__
         Manager.__singleton__ = self
         self.__config = configparser.ConfigParser()
-        # lets make our daemon realtime priorized, 4 pts above other realtime process
-        self.setRealtime(os.getpid(), -4)
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
-        
+    
     def __del__(self):
         # not called... please check:
         # https://stackoverflow.com/questions/73663/terminating-a-python-script
@@ -101,18 +99,22 @@ class Manager:
 
     def run_manager(self):
         
+        # lets make our daemon realtime priorized, 4 pts above other realtime process
+        self.setRealtime(os.getpid(), -4)
+        
         # start initial App
         self.start_app()
 
         # start on-board midi? (only if your hardware has onboard serial uart)
         if self.__config['midi'].getboolean('onboard-uart') == True:
-            # a trick here is to call ttymidi on our serial interface to setup it for jamrouter usage.
-            ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', str(self.__config['midi']['device']), '-b', '38400'], shell=False)
-            os.kill(ttymidi.pid, signal.SIGTERM)
-            os.kill(ttymidi.pid, signal.SIGKILL)
-            ttymidi.kill()
-            self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.__config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
-            self.setRealtime(self.__onboard_midi.pid, 4)        
+            self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
+            self.setRealtime(self.__onboard_midi.pid, 4)
+            self.__jack_client.connect('ttymidi:MIDI_in', 'OpenDSP_RT:in_1')
+            # set our serial to 38400 to trick raspbery goes into 31200
+            #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.__config['midi']['device']), '38400'], shell=True)            
+            # problem: cant get jamrouter to work without start ttymidi first, setup else where beisde the baudrate?
+            #self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.__config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
+            #self.setRealtime(self.__onboard_midi.pid, 4)        
         
         # start checkNewMidi Thread
         self.__check_midi_thread = threading.Thread(target=self.checkNewMidiInput, args=())
@@ -124,7 +126,7 @@ class Manager:
         
         while self.__run:
             self.__app.run()
-            time.sleep(10)
+            time.sleep(5)
 
     def checkNewMidiInput(self):
         # new devices on raw midi layer?
@@ -143,7 +145,7 @@ class Manager:
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)
         for process in children:
-            subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.id)], shell=False)
+            subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
 
     def load_config(self):
         self.__config.read(USER_DATA + '/system.cfg')

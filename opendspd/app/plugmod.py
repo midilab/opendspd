@@ -37,7 +37,7 @@ class plugmod(App):
     __is_visual_on = False
     
     # make use of vdisplay for user app manament via VNC and Xvfb
-    __virtual_desktop = False
+    __virtual_desktop = None
     __is_vdisplay_on = False
     __ingen_client = None
     
@@ -77,10 +77,10 @@ class plugmod(App):
             pass
             
         if self.__virtual_desktop != None:   
-            self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg  --graph-directory=/home/opendsp/data/plugmod/')
+            self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg  --graph-directory=' + self.odsp.getDataPath() + '/' + self.__app_path + '/projects/')
             self.__is_vdisplay_on = True            
         else:
-            self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f', '--graph-directory=/home/opendsp/data/plugmod/'])
+            self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
             
         self.odsp.setRealtime(self.__ingen.pid)
         
@@ -128,8 +128,6 @@ class plugmod(App):
         #    self.__ingen_client = self.odsp.start_virtual_display_app('/usr/bin/ingen -g')
         #    #self.odsp.setRealtime(self.__ingen_client.pid)
         #    self.__is_vdisplay_on = True
-            
-        time.sleep(10)
 
     def manageAudioConnections(self):
         # filter data to get only ingen for outputs:
@@ -189,7 +187,7 @@ class plugmod(App):
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/*_' + str(project) + '.ingen')
+        project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/projects/*_' + str(project) + '.ingen')
         if len(project_file) > 0:
             self.__project_bundle = project_file[0]
             # send load bundle request and also unload old bundle in case we have anything loaded
@@ -206,7 +204,7 @@ class plugmod(App):
         
         # send initial command
         self.__ingen_socket.send(data.encode('utf-8'))
-        resp = self.__ingen_socket.recv(2048)
+        resp = self.__ingen_socket.recv(4096)
         print('Received ' + repr(resp))
         
     def save_project(self, project):
