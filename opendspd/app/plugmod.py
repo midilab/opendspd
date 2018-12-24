@@ -72,8 +72,12 @@ class plugmod(App):
             os.remove(sock)
         if os.path.exists("/home/opendsp/.config/ingen/options.ttl"): 
             os.remove("/home/opendsp/.config/ingen/options.ttl")
-            
-        self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
+        
+        if self.__virtual_desktop != None:   
+            self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg  --graph-directory=/home/opendsp/data/plugmod/')
+            self.__is_vdisplay_on = True            
+        else:
+            self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f', '--graph-directory=/home/opendsp/data/plugmod/'])
         self.odsp.setRealtime(self.__ingen.pid)
         
         while os.path.exists("/tmp/ingen.sock") == False:
@@ -110,10 +114,10 @@ class plugmod(App):
             subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
             self.__is_visual_on = True
         
-        if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
-            self.__ingen_client = self.odsp.start_virtual_display_app('/usr/bin/ingen -g')
-            #self.odsp.setRealtime(self.__ingen_client.pid)
-            self.__is_vdisplay_on = True
+        #if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
+        #    self.__ingen_client = self.odsp.start_virtual_display_app('/usr/bin/ingen -g')
+        #    #self.odsp.setRealtime(self.__ingen_client.pid)
+        #    self.__is_vdisplay_on = True
             
         time.sleep(10)
 
