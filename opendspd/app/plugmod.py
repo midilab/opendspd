@@ -39,6 +39,7 @@ class plugmod(App):
     # make use of vdisplay for user app manament via VNC and Xvfb
     __virtual_desktop = False
     __is_vdisplay_on = False
+    __ingen_client = None
     
     __project = None
     __bank = None
@@ -71,17 +72,19 @@ class plugmod(App):
             os.remove(sock)
         if os.path.exists("/home/opendsp/.config/ingen/options.ttl"): 
             os.remove("/home/opendsp/.config/ingen/options.ttl")
+            
         self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
         self.odsp.setRealtime(self.__ingen.pid)
-        time.sleep(2)
         
-        if os.path.exists("/tmp/ingen.sock"):
-            #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            #self.__ingen_socket.connect("/tmp/ingen.sock")
-            self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.__ingen_socket.connect(("localhost", 16180))
-        else:
-            print("Couldn't Connect to ingen socket!")
+        while os.path.exists("/tmp/ingen.sock") == False:
+            # TODO: max time to wait for
+            pass
+
+        time.sleep(1)
+        #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        #self.__ingen_socket.connect("/tmp/ingen.sock")
+        self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.__ingen_socket.connect(("localhost", 16180))
     
         # start main mixer?
         if self.__mixer != None:
@@ -108,7 +111,8 @@ class plugmod(App):
             self.__is_visual_on = True
         
         if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
-            projectm = self.odsp.start_virtual_display_app('/usr/bin/xterm -bg black -fg white -maximized')
+            self.__ingen_client = self.odsp.start_virtual_display_app('/usr/bin/ingen -g')
+            #self.odsp.setRealtime(self.__ingen_client.pid)
             self.__is_vdisplay_on = True
             
         time.sleep(10)
@@ -165,13 +169,13 @@ class plugmod(App):
         pass
 
     def load_project(self, project):
-        data = ""
+        data = ''
         self.__project = str(project)
         #self.__bank = bank
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/' + str(project) + '_*')
+        project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/*_' + str(project) + '.ingen')
         if len(project_file) > 0:
             self.__project_bundle = project_file[0]
             # send load bundle request and also unload old bundle in case we have anything loaded
@@ -190,8 +194,6 @@ class plugmod(App):
         self.__ingen_socket.send(data.encode('utf-8'))
         resp = self.__ingen_socket.recv(2048)
         print('Received ' + repr(resp))
-        # who to wait for ingen to tell us we ready? sleep a default time for now
-        time.sleep(6)
         
     def save_project(self, project):
         pass
@@ -199,17 +201,14 @@ class plugmod(App):
     def load_mixer(self, config):
         # its part of plugmod config, you use as virtual mixer or direct analog output
         self.__ecasound = subprocess.Popen('/usr/bin/ecasound -c', shell=True, env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
-        time.sleep(1)
         self.odsp.setRealtime(self.__ecasound.pid)
 
         # load mixer config setup
         cmd = 'cs-load ' + self.odsp.getDataPath() + '/' + self.__app_path + '/mixer/' + self.__mixer_model + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
-        time.sleep(1)
         self.__ecasound.stdin.write(b'start\n')
         self.__ecasound.stdin.flush()
-        time.sleep(2)
 
         # connect opendsp midi out into ecasound midi in
         self.jack.connect('OpenDSP_RT:out_15', 'alsa_midi:ecasound (in)')

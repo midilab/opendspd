@@ -34,6 +34,7 @@ class djing(App):
     # external mixer mode directs each module output to his mirroed number on system output
     __mixer = None # external, no internal mixer is the default 'internal' # 'external'
     __visualizer = None
+    __is_visual_on = False
     
     __project = None
     __bank = None
@@ -55,13 +56,14 @@ class djing(App):
     def run(self):
         
         # do we want to start visualizer?
-        if self.__visualizer != None:
+        if self.__visualizer != None and self.__is_visual_on == False:
             # for now only "projectm", so no check...
             projectm = self.odsp.start_display_app('/usr/bin/projectM-jack')
             self.odsp.setRealtime(self.projectm.pid, -50)
             # wait projectm to comes up and them set it full screen
             time.sleep(15)
             subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
+            self.__is_visual_on = True
                     
         while True:
             time.sleep(5)

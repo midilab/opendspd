@@ -81,7 +81,7 @@ class Manager:
         # check for display on
         if self.__display_on == True:
             # stop display service
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'display'], shell=False)
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'display'], shell=True)
         # any other service to be stoped?   
         # vdisplay? 
 
@@ -97,7 +97,7 @@ class Manager:
         # start MIDI engine
         self.start_midi()
         # force rtirq to restart
-        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=False)
+        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
 
     def run_manager(self):
         
@@ -108,17 +108,19 @@ class Manager:
         if self.__config['midi'].getboolean('onboard-uart') == True:
             # a trick here is to call ttymidi on our serial interface to setup it for jamrouter usage.
             ttymidi = subprocess.Popen(['/usr/bin/ttymidi', '-s', str(self.__config['midi']['device']), '-b', '38400'], shell=False)
-            time.sleep(2)
+            os.kill(ttymidi.pid, signal.SIGTERM)
+            os.kill(ttymidi.pid, signal.SIGKILL)
             ttymidi.kill()
-            time.sleep(2)
             self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.__config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
-            time.sleep(1)
             self.setRealtime(self.__onboard_midi.pid, 4)        
         
         # start checkNewMidi Thread
         self.__check_midi_thread = threading.Thread(target=self.checkNewMidiInput, args=())
         self.__check_midi_thread.daemon = True
         self.__check_midi_thread.start()     
+        
+        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
+        self.__jack_client.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
         
         while self.__run:
             self.__app.run()
@@ -129,8 +131,7 @@ class Manager:
         for midi_device in glob.glob("/dev/midi*"):
             if midi_device in self.__midi_devices:
                 continue
-            midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
-            time.sleep(1)
+            midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
             self.setRealtime(self.__onboard_midi.pid, 4)  
             self.__midi_devices.append(midi_device)
             # todo: we need to keep midi_device_proc for later managemant purpose
@@ -139,7 +140,6 @@ class Manager:
     def setRealtime(self, pid, inc=0):
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
-        time.sleep(2)
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)
         for process in children:
@@ -202,7 +202,6 @@ class Manager:
 
     def start_audio(self):
         self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False)
-        time.sleep(1)
         self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
@@ -221,7 +220,6 @@ class Manager:
         app_class = getattr(module, self.__app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
-        time.sleep(1)
         
         # call mididings and set it realtime alog with jack - named OpenDSP_RT
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
@@ -229,12 +227,7 @@ class Manager:
         # ChannelFilter(16) >> Port(16)
         rule = "[ " + self.__app.get_midi_processor() + ", ChannelFilter(16) >> Port(16) ]"
         self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule], shell=False)
-        time.sleep(1)
         self.setRealtime(self.__mididings.pid, 4)
-        time.sleep(1)
-        
-        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
-        self.__jack_client.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
  
         self.__app.start()     
         
@@ -243,7 +236,6 @@ class Manager:
         if self.__display_on == False:
             # start display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'], shell=False)
-            time.sleep(1)
             # avoid screen auto shutoff
             subprocess.call(['/usr/bin/xset', 's', 'off'], shell=False)
             subprocess.call(['/usr/bin/xset', '-dpms'], shell=False)
@@ -252,19 +244,22 @@ class Manager:
             self.__display_on = True
             
         # start app
-        return subprocess.Popen([cmd], shell=True)
+        return subprocess.Popen([cmd], env=os.environ.copy(), shell=True)
 
     def start_virtual_display_app(self, cmd):
         # check for display on
         if self.__virtual_display_on == False:
             # start display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'], shell=False)
-            time.sleep(1)
             # check if display is running before setup as...
             self.__virtual_display_on = True
-            
+        
+        # get opendsp user env and change the DISPLAY to our virtual one    
+        environment = os.environ.copy()
+        environment["DISPLAY"] = ":1"
+    
         # start virtual display app
-        return subprocess.Popen([cmd], shell=True)
+        return subprocess.Popen([cmd], env=environment, shell=True)
              
     def getDataPath(self):
         return self.__data_path
