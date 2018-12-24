@@ -138,7 +138,7 @@ class Manager:
         time.sleep(5)
             
     def setRealtime(self, pid, inc=0):
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)

@@ -68,28 +68,38 @@ class plugmod(App):
 
         # start main lv2 host. ingen
         # clean environment, sometimes client creates a config file that mess with server later
-        for sock in glob.glob("/tmp/ingen.sock*"):
-            os.remove(sock)
-        if os.path.exists("/home/opendsp/.config/ingen/options.ttl"): 
-            os.remove("/home/opendsp/.config/ingen/options.ttl")
-        
+        try:
+            for sock in glob.glob("/tmp/ingen.sock*"):
+                os.remove(sock)
+            if os.path.exists("/home/opendsp/.config/ingen/options.ttl"): 
+                os.remove("/home/opendsp/.config/ingen/options.ttl")
+        except:
+            pass
+            
         if self.__virtual_desktop != None:   
             self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg  --graph-directory=/home/opendsp/data/plugmod/')
             self.__is_vdisplay_on = True            
         else:
             self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f', '--graph-directory=/home/opendsp/data/plugmod/'])
+            
         self.odsp.setRealtime(self.__ingen.pid)
         
         while os.path.exists("/tmp/ingen.sock") == False:
             # TODO: max time to wait for
             pass
 
-        time.sleep(1)
         #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         #self.__ingen_socket.connect("/tmp/ingen.sock")
         self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.__ingen_socket.connect(("localhost", 16180))
-    
+
+        connected = False
+        while connected == False:
+            try:
+                self.__ingen_socket.connect(("localhost", 16180))
+                connected = True
+            except:
+                pass
+                
         # start main mixer?
         if self.__mixer != None:
             self.load_mixer(self.__mixer)
