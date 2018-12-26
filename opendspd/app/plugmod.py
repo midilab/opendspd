@@ -77,8 +77,10 @@ class plugmod(App):
             pass
             
         if self.__virtual_desktop != None:   
-            self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg  --graph-directory=' + self.odsp.getDataPath() + '/' + self.__app_path + '/projects/')
-            self.__is_vdisplay_on = True            
+            self.__ingen = self.odsp.start_virtual_display_app('/usr/bin/ingen -eg -f --graph-directory=' + self.odsp.getDataPath() + '/' + self.__app_path + '/projects/')
+            self.__is_vdisplay_on = True  
+            # wait client response to start with bundle load             
+            time.sleep(4)
         else:
             self.__ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
             
@@ -86,11 +88,19 @@ class plugmod(App):
         
         while os.path.exists("/tmp/ingen.sock") == False:
             # TODO: max time to wait for
-            pass
+            print("waiting ingen file socket")
+            time.sleep(1)
 
-        #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        #self.__ingen_socket.connect("/tmp/ingen.sock")
-        self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        connected = False
+        while connected == False:
+            try:
+                #self.__ingen_socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                #self.__ingen_socket.connect("/tmp/ingen.sock")
+                self.__ingen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                connected = True
+            except:
+                print("error creating socket for ingen")
+                time.sleep(1)
 
         connected = False
         while connected == False:
@@ -98,13 +108,12 @@ class plugmod(App):
                 self.__ingen_socket.connect(("localhost", 16180))
                 connected = True
             except:
-                pass
+                print("waiting ingen socket")
+                time.sleep(1)
                 
         # start main mixer?
         if self.__mixer != None:
-            self.load_mixer(self.__mixer)
-        else:
-            pass            
+            self.load_mixer(self.__mixer)          
         
         self.load_project(self.params["project"])
         
@@ -132,49 +141,68 @@ class plugmod(App):
     def manageAudioConnections(self):
         # filter data to get only ingen for outputs:
         # outputs
-        jack_audio_lsp = self.jack.get_ports(name_pattern='ingen', is_audio=True, is_output=True)
+        jack_audio_lsp = map(lambda data: data.name, self.jack.get_ports(name_pattern='ingen', is_audio=True, is_output=True))
         for audio_port in jack_audio_lsp:
-            if audio_port.name in self.__audio_port_out:
+            if audio_port in self.__audio_port_out:
                 continue
             try:
                 # get the channel based on any number present on port name
-                channel = int(re.search(r'\d+', audio_port.name).group())     
+                channel = int(re.search(r'\d+', audio_port).group())     
                 if self.__mixer != None:
-                    self.jack.connect(audio_port.name, 'mixer:channel_' + str(channel))
+                    self.jack.connect(audio_port, 'mixer:channel_' + str(channel))
                 else:
-                    self.jack.connect(audio_port.name, 'system:playback_' + str(channel))
+                    self.jack.connect(audio_port, 'system:playback_' + str(channel))
             except:
                 pass
-            self.__audio_port_out.append(audio_port.name)
+            self.__audio_port_out.append(audio_port)
+                
+        # check for deleted or renamed port
+        for audio_port in self.__audio_port_out:
+            if audio_port in jack_audio_lsp:
+                continue
+            self.__audio_port_out.remove(audio_port)                
                 
         # inputs
-        jack_audio_lsp = self.jack.get_ports(name_pattern='ingen', is_audio=True, is_input=True)
+        jack_audio_lsp = map(lambda data: data.name, self.jack.get_ports(name_pattern='ingen', is_audio=True, is_input=True))
         for audio_port in jack_audio_lsp:
-            if audio_port.name in self.__audio_port_in:
+            if audio_port in self.__audio_port_in:
                 continue
             try:
                 # get the channel based on any number present on port name
-                channel = int(re.search(r'\d+', audio_port.name).group())    
-                self.jack.connect(audio_port.name, 'system:capture_' + str(channel))
+                channel = int(re.search(r'\d+', audio_port).group())    
+                self.jack.connect(audio_port, 'system:capture_' + str(channel))
             except:
                 pass
-            self.__audio_port_in.append(audio_port.name)
+            self.__audio_port_in.append(audio_port)
+
+        # check for deleted or renamed port
+        for audio_port in self.__audio_port_in:
+            if audio_port in jack_audio_lsp:
+                continue
+            self.__audio_port_in.remove(audio_port)
 
     def manageMidiConnections(self):  
         # filter data to get only ingen:
         # input
-        jack_midi_lsp = self.jack.get_ports(name_pattern='ingen', is_midi=True, is_input=True)
+        jack_midi_lsp = map(lambda data: data.name, self.jack.get_ports(name_pattern='ingen', is_midi=True, is_input=True))
         for midi_port in jack_midi_lsp:
-            
-            if midi_port.name in self.__midi_port_in:
+            if midi_port in self.__midi_port_in:
                 continue
             try:
                 # get the channel based on any number present on port name
-                channel = int(re.search(r'\d+', midi_port.name).group())  
-                self.jack.connect('OpenDSP_RT:out_' + str(channel), midi_port.name)
+                channel = int(re.search(r'\d+', midi_port).group())  
+                self.jack.connect('OpenDSP_RT:out_' + str(channel), midi_port)
+                # connect  OpenDSP_RT:out_ output to ingen control also... for midi cc map
+                #self.jack.connect('OpenDSP_RT:out_' + str(channel), 'ingen:control')
             except:
                 pass
-            self.__midi_port_in.append(midi_port.name)
+            self.__midi_port_in.append(midi_port)
+
+        # check for deleted or renamed port
+        for midi_port in self.__midi_port_in:
+            if midi_port in jack_midi_lsp:
+                continue
+            self.__midi_port_in.remove(midi_port)
             
     def stop(self):
         #client.close()
@@ -204,8 +232,8 @@ class plugmod(App):
         
         # send initial command
         self.__ingen_socket.send(data.encode('utf-8'))
-        resp = self.__ingen_socket.recv(4096)
-        print('Received ' + repr(resp))
+        #resp = self.__ingen_socket.recv(2048)
+        #print('Received ' + repr(resp))
         
     def save_project(self, project):
         pass

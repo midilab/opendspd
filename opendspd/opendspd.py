@@ -80,8 +80,11 @@ class Manager:
         if self.__display_on == True:
             # stop display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'display'], shell=True)
+        # check for virtual display
+        if self.__virtual_display_on == True:
+            # stop virtual display service
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'vdisplay'], shell=True)    
         # any other service to be stoped?   
-        # vdisplay? 
 
     # catch SIGINT and SIGTERM and stop application
     def signal_handler(self, sig, frame):
@@ -106,10 +109,19 @@ class Manager:
         self.start_app()
 
         # start on-board midi? (only if your hardware has onboard serial uart)
+        #if self.__config.has_option('midi', 'onboard-uart') == True:
         if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', '38400'], shell=False)
+            self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', self.__config['midi']['baudrate']], shell=False)
             self.setRealtime(self.__onboard_midi.pid, 4)
-            self.__jack_client.connect('ttymidi:MIDI_in', 'OpenDSP_RT:in_1')
+            connected = False
+            while connected == False:
+                try:
+                    self.__jack_client.connect('ttymidi:MIDI_in', 'OpenDSP_RT:in_1')
+                    connected = True
+                except:
+                    # max times to try
+                    print('cant found ttymidi jack port... try again')
+                    time.sleep(1)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.__config['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beisde the baudrate?
@@ -140,7 +152,10 @@ class Manager:
         time.sleep(5)
             
     def setRealtime(self, pid, inc=0):
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
+        # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
+        # nproc --all
+        # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)
@@ -163,8 +178,6 @@ class Manager:
             self.__config['audio']['hardware'] = '0,0'
             # video defaults
             # midi setup
-            self.__config['midi']['onboard-uart'] = 'true'
-            self.__config['midi']['device'] = '/dev/ttyAMA0'
             # app defaults
             self.__config['app']['name'] = 'plugmod'
             self.__config['app']['project'] = '1'
@@ -261,7 +274,7 @@ class Manager:
         environment["DISPLAY"] = ":1"
     
         # start virtual display app
-        return subprocess.Popen([cmd], env=environment, shell=True)
+        return subprocess.Popen([cmd], env=environment, stdout=subprocess.PIPE, shell=True)
              
     def getDataPath(self):
         return self.__data_path
