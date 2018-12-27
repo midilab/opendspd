@@ -156,11 +156,12 @@ class Manager:
         # nproc --all
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
-        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for process in children:
-            subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
+        #subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
+        #parent = psutil.Process(pid)
+        #children = parent.children(recursive=True)
+        #for process in children:
+        #    subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
+        pass
 
     def load_config(self):
         self.__config.read(USER_DATA + '/system.cfg')
@@ -216,7 +217,7 @@ class Manager:
         pass
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
         self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
@@ -240,7 +241,7 @@ class Manager:
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
         # add one more rule for our internal opendsp management
         # ChannelFilter(16) >> Port(16)
-        rule = "[ " + self.__app.get_midi_processor() + ", ChannelFilter(16) >> Port(16) ]"
+        rule = "ChannelSplit({ " + self.__app.get_midi_processor() + ", 16: Channel(1) >> Port(16) })"
         self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule], shell=False)
         self.setRealtime(self.__mididings.pid, 4)
  

@@ -50,9 +50,9 @@ class plugmod(App):
     
     def get_midi_processor(self):
         # realtime midi processing routing rules - based on mididings environment
-        self.__midi_processor = "ChannelFilter(" + str(1) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(1) >> Channel(1), ChannelFilter(" + str(2) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(2) >> Channel(1), ChannelFilter(" + str(3) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(3) >> Channel(1), ChannelFilter(" + str(4) + ") >> Filter(NOTE, PROGRAM, CTRL) >> Port(4) >> Channel(1)"
+        self.__midi_processor = str(1) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(1), " + str(2) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(2), " + str(3) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(3), " + str(4) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(4)"
         if self.__mixer != None:
-            self.__midi_processor = self.__midi_processor + ", ChannelFilter(" + str(15) + ") >> Filter(CTRL) >> Port(15) >> Channel(1)"
+            self.__midi_processor = self.__midi_processor + ", " + str(15) + ": Filter(CTRL) >> Channel(1) >> Port(15)"
         return self.__midi_processor 
 
     def start(self):
@@ -131,6 +131,10 @@ class plugmod(App):
             # wait projectm to comes up and them set it full screen
             time.sleep(20)
             subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
+            # jump to next
+            subprocess.call(['/usr/bin/xdotool', 'key', 'n'], shell=True)
+            # lock preset
+            subprocess.call(['/usr/bin/xdotool', 'key', 'l'], shell=True)            
             self.__is_visual_on = True
         
         #if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
