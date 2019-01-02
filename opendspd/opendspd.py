@@ -56,6 +56,8 @@ class Manager:
     # display manage support
     __display_on = False
     __virtual_display_on = False
+    __visualizer = None
+    __visualizer_proc = None
     
     __config = None
     
@@ -76,6 +78,8 @@ class Manager:
     def __del__(self):
         # not called... please check:
         # https://stackoverflow.com/questions/73663/terminating-a-python-script
+        if self.__app != None:
+            del self.__app
         # check for display on
         if self.__display_on == True:
             # stop display service
@@ -84,10 +88,19 @@ class Manager:
         if self.__virtual_display_on == True:
             # stop virtual display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'vdisplay'], shell=True)    
-        # any other service to be stoped?   
+        # kill sub process
+        self.__jack.kill()
+        self.__mididings.kill()
+        if self.__visualizer_proc != None:   
+            self.__visualizer_proc.kill()
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__onboard_midi.kill() 
+        # kill any jamrouter
 
     # catch SIGINT and SIGTERM and stop application
     def signal_handler(self, sig, frame):
+        if self.__app != None:
+            del self.__app  
         self.__run = False
 
     def init(self):
@@ -98,16 +111,29 @@ class Manager:
         # start MIDI engine
         self.start_midi()
         # force rtirq to restart
-        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
+        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
 
-    def run_manager(self):
-        
-        # lets make our daemon realtime priorized, 4 pts above other realtime process
-        self.setRealtime(os.getpid(), -4)
-        
-        # start initial App
-        self.start_app()
+    def start_visualizer(self):
+        # for now only "projectm", so no check...
+        self.__visualizer_proc = self.start_display_app('/usr/bin/projectM-jack')
+        self.setRealtime(self.__visualizer_proc.pid, -50)
+        # wait projectm to comes up and them set it full screen
+        time.sleep(60)
+        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'f'])
+        time.sleep(1)
+        # jump to next
+        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'n'])
+        time.sleep(1)
+        # lock preset
+        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
+        main_app_out = self.__app.get_main_outs()
+        for output in main_app_out:
+            try:
+                self.__jack_client.connect(output, 'projectM-jack:input')
+            except:
+                pass
 
+    def start_midi_processing(self):
         # start on-board midi? (only if your hardware has onboard serial uart)
         #if self.__config.has_option('midi', 'onboard-uart') == True:
         if self.__config['midi'].getboolean('onboard-uart') == True:
@@ -124,7 +150,7 @@ class Manager:
                     time.sleep(1)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.__config['midi']['device']), '38400'], shell=True)            
-            # problem: cant get jamrouter to work without start ttymidi first, setup else where beisde the baudrate?
+            # problem: cant get jamrouter to work without start ttymidi first, setup where else beisde the baudrate?
             #self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.__config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
             #self.setRealtime(self.__onboard_midi.pid, 4)        
         
@@ -135,9 +161,35 @@ class Manager:
         
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
         self.__jack_client.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
+        self.__jack_client.connect('OpenDSP_RT:out_15', 'OpenDSP:in_2')
+                
+    def stop_midi_processing(self):
+        self.__mididings.kill()
+        self.__mididings = None
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__onboard_midi.kill()
+        # we also need to finish jamrouter instances    
+        self.__check_midi_thread.stop() 
+
+    def run_manager(self):
         
+        # lets make our daemon realtime priorized, 4 pts above other realtime process
+        self.setRealtime(os.getpid(), -4)
+        
+        # start initial App
+        self.start_app()
+
+        # all midi processing handling
+        self.start_midi_processing()
+        
+        # do we want to start visualizer?
+        if self.__visualizer != None:
+            visualizer_thread = threading.Thread(target=self.start_visualizer, args=())
+            visualizer_thread.start()                 
+            
         while self.__run:
-            self.__app.run()
+            if self.__app != None:
+                self.__app.run()
             time.sleep(5)
 
     def checkNewMidiInput(self):
@@ -146,11 +198,11 @@ class Manager:
             if midi_device in self.__midi_devices:
                 continue
             midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
-            self.setRealtime(self.__onboard_midi.pid, 4)  
+            self.setRealtime(self.midi_device_proc.pid, 4)  
             self.__midi_devices.append(midi_device)
             # todo: we need to keep midi_device_proc for later managemant purpose
         time.sleep(5)
-            
+
     def setRealtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
@@ -170,6 +222,9 @@ class Manager:
         # midi setup
         # app defaults
 
+        if "visualizer" in self.__config:   
+            self.__visualizer = self.__config["visualizer"]   
+            
         # if system config file does not exist, load default values
         if len(self.__config) == 0:
             # audio defaults
@@ -178,35 +233,70 @@ class Manager:
             self.__config['audio']['buffer'] = '256'
             self.__config['audio']['hardware'] = '0,0'
             # video defaults
+            #self.__config['visualizer']
             # midi setup
             # app defaults
             self.__config['app']['name'] = 'plugmod'
             self.__config['app']['project'] = '1'
-                    
+            
     def midi_processor_queue(self, event):
         #event.value
-        for case in switch(event.ctrl):
-            if case(119):
-                #LOAD_APP
-                break
-            if case(118):
-                #LOAD_APP_PROJECT
-                break
-            if case(117):
-                #LOAD_APP_NEXT_PROJECT
-                break
-            if case(116):
-                #LOAD_APP_PREV_PROJECT
-                break
-            if case(115):
-                #LOAD_APP_SAVE_AS
-                break
-        
+        if event.ctrl == 119:
+        #if event.ctrl == 20:
+            #LOAD_APP
+            #self.__config['app']['name'] = self.get_app_by_id(event.value)
+            self.__config['app']['name'] = self.get_app_by_id(1)
+            self.__config['app']['project'] = event.value
+            self.stop_midi_processing()
+            self.stop_app()
+            self.start_app()
+            self.start_midi_processing()
+            return
+        #if event.ctrl == 118:
+        if event.ctrl == 20:
+            #LOAD_APP_PROJECT
+            self.__config['app']['project'] = 2
+            self.stop_app()
+            self.start_app()
+            return
+        if event.ctrl == 117:
+            #LOAD_APP_NEXT_PROJECT
+            return
+        if event.ctrl == 116:
+            #LOAD_APP_PREV_PROJECT
+            return
+        if event.ctrl == 115:
+            #LOAD_APP_SAVE_AS
+            return
+        # previous visualizer preset    
+        if event.ctrl == 20:   
+            self.__config['app']['project'] = 2
+            self.stop_app()
+            self.start_app()                
+            self.set_visualizer_preset('prev')
+            return
+        # next visualizer preset    
+        if event.ctrl == 21:
+            self.set_visualizer_preset('next')
+            return
+        # get a fresh and random visualizer preset   
+        if event.ctrl == 22:
+            self.set_visualizer_preset('random')
+            return
+        # lock/unlock visualizer preset    
+        if event.ctrl == 23:
+            self.set_visualizer_preset('lock')
+            return
+            
+    def midi_processor_queue_app(self, event):
+        self.__app.midi_processor_queue(event)
+            
     def midi_processor(self):
         run(
             [
                 # opendsp midi controlled via cc messages on channel 16 
-                ChannelFilter(16) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue)            
+                PortFilter(1) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue),
+                PortFilter(2) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue_app)            
             ]
         )
 
@@ -225,28 +315,33 @@ class Manager:
  
     def start_midi(self):
         # start mididings and a thread for midi input user control and feedback listening
-        config(backend='jack', client_name='OpenDSP')
+        config(backend='jack', client_name='OpenDSP', in_ports=2)
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
         self.__midi_processor_thread.daemon = True
         self.__midi_processor_thread.start()
 
-    def start_app(self, app_name=None):
+    def start_app(self):
         self.__app_name = self.__config['app']['name']
         module = importlib.import_module('opendspd.app.' + self.__app_name)
         app_class = getattr(module, self.__app_name)
         self.__app = app_class(self.__singleton__)
         self.__app_midi_processor = self.__app.get_midi_processor()
-        
+
         # call mididings and set it realtime alog with jack - named OpenDSP_RT
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
         # add one more rule for our internal opendsp management
         # ChannelFilter(16) >> Port(16)
-        rule = "ChannelSplit({ " + self.__app.get_midi_processor() + ", 16: Channel(1) >> Port(16) })"
+        rule = "ChannelSplit({ " + self.__app.get_midi_processor() + ", 15: Port(15), 16: Port(16) })"
         self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule], shell=False)
         self.setRealtime(self.__mididings.pid, 4)
  
-        self.__app.start()     
-        
+        self.__app.start()
+
+    def stop_app(self):
+        if self.__app != None:
+            del self.__app
+            self.__app = None
+
     def start_display_app(self, cmd):
         # check for display on
         if self.__display_on == False:
@@ -276,6 +371,13 @@ class Manager:
     
         # start virtual display app
         return subprocess.Popen([cmd], env=environment, stdout=subprocess.PIPE, shell=True)
+
+    def get_app_by_id(self, app_id):
+        if app_id == 0:
+            return 'plugmod'
+        if app_id == 1:
+            return 'djing'
+        return 'plugmod'
              
     def getDataPath(self):
         return self.__data_path
@@ -285,3 +387,14 @@ class Manager:
         
     def getJackClient(self):
         return self.__jack_client
+
+    def set_visualizer_preset(self, preset):
+        if preset == 'prev':
+            subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'p'])
+        elif preset == 'next':
+            subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'n'])
+        elif preset == 'random':
+            subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'r'])
+        elif preset == 'lock':
+            subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
+            

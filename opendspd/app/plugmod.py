@@ -33,8 +33,6 @@ class plugmod(App):
     # internal mixer mode use ecasound as main virtual mixing console
     # external mixer mode directs each module output to his mirroed number on system output
     __mixer = None # external, no internal mixer is the default 'internal' # 'external'
-    __visualizer = None
-    __is_visual_on = False
     
     # make use of vdisplay for user app manament via VNC and Xvfb
     __virtual_desktop = None
@@ -47,21 +45,31 @@ class plugmod(App):
     __audio_port_out = []
     __audio_port_in = []
     __midi_port_in = []
+    __mixer_port_out = []
+    
+    def __del__(self):
+        self.__ingen.kill()
+        if self.__mixer != None:
+            self.__ecasound.kill()
     
     def get_midi_processor(self):
         # realtime midi processing routing rules - based on mididings environment
         self.__midi_processor = str(1) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(1), " + str(2) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(2), " + str(3) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(3), " + str(4) + ": Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port(4)"
         if self.__mixer != None:
-            self.__midi_processor = self.__midi_processor + ", " + str(15) + ": Filter(CTRL) >> Channel(1) >> Port(15)"
-        return self.__midi_processor 
+            self.__midi_processor = self.__midi_processor + ", " + str(14) + ": Filter(CTRL) >> Channel(1) >> Port(14)"
+        return self.__midi_processor
 
+    def midi_processor_queue(self, event):
+        #event.value
+        if event.ctrl == 119:
+            #NEW PROJECT
+            self.new_project()
+            return
+        
     def start(self):
 
         if "mixer" in self.params:
             self.__mixer = self.params["mixer"]    
-            
-        if "visualizer" in self.params:   
-            self.__visualizer = self.params["visualizer"]  
             
         if "virtual_desktop" in self.params:
             self.__virtual_desktop = self.params["virtual_desktop"]
@@ -123,25 +131,17 @@ class plugmod(App):
         self.manageAudioConnections()
         self.manageMidiConnections()
         
-        # do we want to start visualizer?
-        if self.__visualizer != None and self.__is_visual_on == False:
-            # for now only "projectm", so no check...
-            projectm = self.odsp.start_display_app('/usr/bin/projectM-jack')
-            self.odsp.setRealtime(projectm.pid, -50)
-            # wait projectm to comes up and them set it full screen
-            time.sleep(20)
-            subprocess.call(['/usr/bin/xdotool', 'key', 'f'], shell=True)
-            # jump to next
-            subprocess.call(['/usr/bin/xdotool', 'key', 'n'], shell=True)
-            # lock preset
-            subprocess.call(['/usr/bin/xdotool', 'key', 'l'], shell=True)            
-            self.__is_visual_on = True
-        
         #if self.__virtual_desktop != None and self.__is_vdisplay_on == False:   
         #    self.__ingen_client = self.odsp.start_virtual_display_app('/usr/bin/ingen -g')
         #    #self.odsp.setRealtime(self.__ingen_client.pid)
         #    self.__is_vdisplay_on = True
 
+    def get_main_outs(self):
+        if self.__mixer != None:
+            return ['mixer:channel_1', 'mixer:channel_2']
+        else:
+            return self.__audio_port_out
+        
     def manageAudioConnections(self):
         # filter data to get only ingen for outputs:
         # outputs
@@ -159,6 +159,20 @@ class plugmod(App):
             except:
                 pass
             self.__audio_port_out.append(audio_port)
+        
+        #
+        if self.__mixer != None:
+            jack_audio_lsp = map(lambda data: data.name, self.jack.get_ports(name_pattern='mixer', is_audio=True, is_output=True))            
+            for mixer_port in jack_audio_lsp:
+                if mixer_port in self.__mixer_port_out:
+                    continue
+                try:
+                    # get the channel based on any number present on port name
+                    channel = int(re.search(r'\d+', mixer_port).group())     
+                    self.jack.connect(mixer_port, 'system:playback_' + str(channel))
+                except:
+                    pass
+                self.__mixer_port_out.append(mixer_port)
                 
         # check for deleted or renamed port
         for audio_port in self.__audio_port_out:
@@ -238,6 +252,14 @@ class plugmod(App):
         self.__ingen_socket.send(data.encode('utf-8'))
         #resp = self.__ingen_socket.recv(2048)
         #print('Received ' + repr(resp))
+
+    def new_project(self):
+        # delete 
+        #data = '[] a patch:Delete ; patch:subject </main> ; patch:body [ a ingen:Arc ; ingen:incidentTo </main> ] .\0'
+        #self.__ingen_socket.send(data.encode('utf-8'))
+        #data = '[] a patch:Delete ; patch:subject </main> .\0'
+        data = '[] a patch:Delete ; patch:subject </main/*> .\0'
+        self.__ingen_socket.send(data.encode('utf-8'))
         
     def save_project(self, project):
         pass
@@ -248,17 +270,12 @@ class plugmod(App):
         self.odsp.setRealtime(self.__ecasound.pid)
 
         # load mixer config setup
-        cmd = 'cs-load ' + self.odsp.getDataPath() + '/' + self.__app_path + '/mixer/' + self.__mixer_model + '.ecs\n'
+        cmd = 'cs-load ' + self.odsp.getDataPath() + '/' + self.__app_path + '/mixer/' + self.__mixer + '.ecs\n'
         self.__ecasound.stdin.write(cmd.encode())
         self.__ecasound.stdin.flush()
         self.__ecasound.stdin.write(b'start\n')
         self.__ecasound.stdin.flush()
-
-        # connect opendsp midi out into ecasound midi in
-        self.jack.connect('OpenDSP_RT:out_15', 'alsa_midi:ecasound (in)')
-        self.jack.connect('system:playback_1', 'mixer:master_1')
-        self.jack.connect('system:playback_2', 'mixer:master_2')
-        
+ 
     def clear_mixer(self):
         # also finish ecasound instance
         self.__ecasound.stdin.write(b'stop\n')
