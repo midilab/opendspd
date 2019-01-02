@@ -24,7 +24,6 @@ class djing(App):
 
     __mixxx = None
     __ingen_socket = None
-    __ecasound = None
 
     __app_path = 'djing'
     __project_bundle = None
@@ -39,6 +38,10 @@ class djing(App):
     __project = None
     __bank = None
     
+    def __del__(self):
+        self.__mixxx.kill()
+        self.__ingen_socket.close()
+            
     def get_midi_processor(self):
         # realtime midi processing routing rules - based on mididings environment
         self.__midi_processor = str(14) + ": Channel(1) >> Port(1)"
@@ -58,8 +61,11 @@ class djing(App):
         
     def run(self):
         if self.__opendsp_midi_connected == False:
-            self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
-            self.__opendsp_midi_connected = True
+            try:
+                self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
+                self.__opendsp_midi_connected = True
+            except:
+                pass
 
     def get_main_outs(self):
         return ['Mixxx:out_0', 'Mixxx:out_1']

@@ -41,7 +41,8 @@ class Manager:
     __jack = None
     __jack_client = None
     __mididings = None
-    __onboard_midi = None 
+    __onboard_midi = None
+    __midi_devices_proc = [] 
     __midi_devices = []  
 
 	# Loaded app if any
@@ -61,7 +62,7 @@ class Manager:
     
     __config = None
     
-    __run = True
+    __run = False
         
     # Default data path
     __data_path = USER_DATA
@@ -76,10 +77,6 @@ class Manager:
         signal.signal(signal.SIGTERM, self.signal_handler)
     
     def __del__(self):
-        # not called... please check:
-        # https://stackoverflow.com/questions/73663/terminating-a-python-script
-        if self.__app != None:
-            del self.__app
         # check for display on
         if self.__display_on == True:
             # stop display service
@@ -88,14 +85,13 @@ class Manager:
         if self.__virtual_display_on == True:
             # stop virtual display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'vdisplay'], shell=True)    
+        # stop app
+        self.stop_app()
         # kill sub process
+        self.stop_midi_processing()
         self.__jack.kill()
-        self.__mididings.kill()
         if self.__visualizer_proc != None:   
             self.__visualizer_proc.kill()
-        if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__onboard_midi.kill() 
-        # kill any jamrouter
 
     # catch SIGINT and SIGTERM and stop application
     def signal_handler(self, sig, frame):
@@ -133,9 +129,20 @@ class Manager:
             except:
                 pass
 
+    def stop_midi_processing(self):
+        self.__mididings.kill()
+        # all jamrouter proc
+        # TODO: eternal loop bug
+        #for device in self.__midi_devices_procs:
+        #    device.kill()
+        self.__midi_devices_procs = []
+        self.__midi_devices = []
+        self.__check_midi_thread = None
+        if self.__config['midi'].getboolean('onboard-uart') == True:
+            self.__onboard_midi.kill()
+            
     def start_midi_processing(self):
         # start on-board midi? (only if your hardware has onboard serial uart)
-        #if self.__config.has_option('midi', 'onboard-uart') == True:
         if self.__config['midi'].getboolean('onboard-uart') == True:
             self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', self.__config['midi']['baudrate']], shell=False)
             self.setRealtime(self.__onboard_midi.pid, 4)
@@ -150,26 +157,17 @@ class Manager:
                     time.sleep(1)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.__config['midi']['device']), '38400'], shell=True)            
-            # problem: cant get jamrouter to work without start ttymidi first, setup where else beisde the baudrate?
+            # problem: cant get jamrouter to work without start ttymidi first, setup else where beisde the baudrate?
             #self.__onboard_midi = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.__config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
             #self.setRealtime(self.__onboard_midi.pid, 4)        
         
         # start checkNewMidi Thread
         self.__check_midi_thread = threading.Thread(target=self.checkNewMidiInput, args=())
-        self.__check_midi_thread.daemon = True
         self.__check_midi_thread.start()     
         
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
         self.__jack_client.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
-        self.__jack_client.connect('OpenDSP_RT:out_15', 'OpenDSP:in_2')
-                
-    def stop_midi_processing(self):
-        self.__mididings.kill()
-        self.__mididings = None
-        if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__onboard_midi.kill()
-        # we also need to finish jamrouter instances    
-        self.__check_midi_thread.stop() 
+        self.__jack_client.connect('OpenDSP_RT:out_15', 'OpenDSP:in_2')        
 
     def run_manager(self):
         
@@ -179,30 +177,33 @@ class Manager:
         # start initial App
         self.start_app()
 
-        # all midi processing handling
+        # midi handling 
         self.start_midi_processing()
         
         # do we want to start visualizer?
         if self.__visualizer != None:
-            visualizer_thread = threading.Thread(target=self.start_visualizer, args=())
-            visualizer_thread.start()                 
-            
+            self.__visualizer_thread = threading.Thread(target=self.start_visualizer, args=())
+            self.__visualizer_thread.start()                 
+        
+        self.__run = True
+        
         while self.__run:
             if self.__app != None:
                 self.__app.run()
             time.sleep(5)
 
     def checkNewMidiInput(self):
-        # new devices on raw midi layer?
-        for midi_device in glob.glob("/dev/midi*"):
-            if midi_device in self.__midi_devices:
-                continue
-            midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
-            self.setRealtime(self.midi_device_proc.pid, 4)  
-            self.__midi_devices.append(midi_device)
-            # todo: we need to keep midi_device_proc for later managemant purpose
-        time.sleep(5)
-
+        while self.__app != None:
+            # new devices on raw midi layer?
+            for midi_device in glob.glob("/dev/midi*"):
+                if midi_device in self.__midi_devices:
+                    continue
+                midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+                self.setRealtime(self.midi_device_proc.pid, 4)  
+                self.__midi_devices.append(midi_device)
+                self.__midi_devices_procs.append(midi_device_proc)
+            time.sleep(5)
+        
     def setRealtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
@@ -241,21 +242,18 @@ class Manager:
             
     def midi_processor_queue(self, event):
         #event.value
-        if event.ctrl == 119:
-        #if event.ctrl == 20:
+        if event.ctrl == 20:
             #LOAD_APP
-            #self.__config['app']['name'] = self.get_app_by_id(event.value)
-            self.__config['app']['name'] = self.get_app_by_id(1)
-            self.__config['app']['project'] = event.value
-            self.stop_midi_processing()
+            self.__config['app']['name'] = 'djing'
+            self.__config['app']['project'] = '1'
             self.stop_app()
+            self.stop_midi_processing()
             self.start_app()
             self.start_midi_processing()
             return
-        #if event.ctrl == 118:
-        if event.ctrl == 20:
+        if event.ctrl == 118:
             #LOAD_APP_PROJECT
-            self.__config['app']['project'] = 2
+            self.__config['app']['project'] = '1'
             self.stop_app()
             self.start_app()
             return
@@ -269,10 +267,7 @@ class Manager:
             #LOAD_APP_SAVE_AS
             return
         # previous visualizer preset    
-        if event.ctrl == 20:   
-            self.__config['app']['project'] = 2
-            self.stop_app()
-            self.start_app()                
+        if event.ctrl == 20:       
             self.set_visualizer_preset('prev')
             return
         # next visualizer preset    
@@ -317,7 +312,7 @@ class Manager:
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=2)
         self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
-        self.__midi_processor_thread.daemon = True
+        #self.__midi_processor_thread.daemon = True
         self.__midi_processor_thread.start()
 
     def start_app(self):
@@ -347,6 +342,7 @@ class Manager:
         if self.__display_on == False:
             # start display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'], shell=False)
+            time.sleep(2)
             # avoid screen auto shutoff
             subprocess.call(['/usr/bin/xset', 's', 'off'], shell=False)
             subprocess.call(['/usr/bin/xset', '-dpms'], shell=False)
@@ -371,13 +367,6 @@ class Manager:
     
         # start virtual display app
         return subprocess.Popen([cmd], env=environment, stdout=subprocess.PIPE, shell=True)
-
-    def get_app_by_id(self, app_id):
-        if app_id == 0:
-            return 'plugmod'
-        if app_id == 1:
-            return 'djing'
-        return 'plugmod'
              
     def getDataPath(self):
         return self.__data_path
