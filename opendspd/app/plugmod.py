@@ -175,7 +175,8 @@ class plugmod(App):
                 self.__mixer_port_out.append(mixer_port)
                 
         # check for deleted or renamed port
-        for audio_port in self.__audio_port_out:
+        tmp_audio_port_out = self.__audio_port_out
+        for audio_port in tmp_audio_port_out:
             if audio_port in jack_audio_lsp:
                 continue
             self.__audio_port_out.remove(audio_port)                
@@ -194,7 +195,8 @@ class plugmod(App):
             self.__audio_port_in.append(audio_port)
 
         # check for deleted or renamed port
-        for audio_port in self.__audio_port_in:
+        tmp_audio_port_in = self.__audio_port_in
+        for audio_port in tmp_audio_port_in:
             if audio_port in jack_audio_lsp:
                 continue
             self.__audio_port_in.remove(audio_port)
@@ -217,7 +219,8 @@ class plugmod(App):
             self.__midi_port_in.append(midi_port)
 
         # check for deleted or renamed port
-        for midi_port in self.__midi_port_in:
+        tmp_midi_port_in = self.__midi_port_in
+        for midi_port in tmp_midi_port_in:
             if midi_port in jack_midi_lsp:
                 continue
             self.__midi_port_in.remove(midi_port)

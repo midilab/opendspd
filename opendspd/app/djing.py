@@ -23,7 +23,6 @@ from . import App
 class djing(App):
 
     __mixxx = None
-    __ingen_socket = None
 
     __app_path = 'djing'
     __project_bundle = None
@@ -40,7 +39,6 @@ class djing(App):
     
     def __del__(self):
         self.__mixxx.kill()
-        self.__ingen_socket.close()
             
     def get_midi_processor(self):
         # realtime midi processing routing rules - based on mididings environment
@@ -54,10 +52,12 @@ class djing(App):
             return
 
     def start(self):
+        # free cache memory before start mixxx, on small ram size embeded devices like raspberry - 1GB ram.
+        #subprocess.call("/sbin/sudo /bin/sh -c 'echo 3 >/proc/sys/vm/drop_caches'")
         # we need the --developer option to enable midi through alsa interface
-        self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx -f --developer')
-        #time.sleep(10)
-        #self.odsp.setRealtime(self.__mixxx.pid)
+        self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
+        #time.sleep(20)
+        self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):
         if self.__opendsp_midi_connected == False:

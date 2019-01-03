@@ -107,7 +107,7 @@ class Manager:
         # start MIDI engine
         self.start_midi()
         # force rtirq to restart
-        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
+        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
 
     def start_visualizer(self):
         # for now only "projectm", so no check...
@@ -190,25 +190,40 @@ class Manager:
         while self.__run:
             if self.__app != None:
                 self.__app.run()
+            # check for update packages on /data/system.cfg
             time.sleep(5)
 
     def checkNewMidiInput(self):
         while self.__app != None:
+            # to use integrated jackd a2jmidid please add -Xseq to jackd init param
+            #jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
+            #for midi_port in jack_midi_lsp:
+            #    if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+            #        continue
+            #    self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
+            #    self.__midi_port_in.append(midi_port)
+            
             # new devices on raw midi layer?
             for midi_device in glob.glob("/dev/midi*"):
                 if midi_device in self.__midi_devices:
                     continue
-                midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(midi_device), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
-                self.setRealtime(self.midi_device_proc.pid, 4)  
+                midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+                self.setRealtime(midi_device_proc.pid, 4)  
                 self.__midi_devices.append(midi_device)
                 self.__midi_devices_procs.append(midi_device_proc)
             time.sleep(5)
-        
+    
     def setRealtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
+        num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
+        usable_procs = ""
+        for i in range(num_proc):
+            if ((i+1)/num_proc) > 0.25:
+                usable_procs = usable_procs + "," + str(i)
+        usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', '1,2,3', str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         #subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         #parent = psutil.Process(pid)
         #children = parent.children(recursive=True)
@@ -225,12 +240,12 @@ class Manager:
 
         if "visualizer" in self.__config:   
             self.__visualizer = self.__config["visualizer"]   
-            
+        
         # if system config file does not exist, load default values
         if len(self.__config) == 0:
             # audio defaults
             self.__config['audio']['rate'] = '48000'
-            self.__config['audio']['period'] = '8'
+            self.__config['audio']['period'] = '3'
             self.__config['audio']['buffer'] = '256'
             self.__config['audio']['hardware'] = '0,0'
             # video defaults
@@ -242,10 +257,10 @@ class Manager:
             
     def midi_processor_queue(self, event):
         #event.value
-        if event.ctrl == 20:
+        if event.ctrl == 119:
             #LOAD_APP
-            self.__config['app']['name'] = 'djing'
-            self.__config['app']['project'] = '1'
+            self.__config['app']['name'] = self.get_app_name_by_id(event.value)
+            self.__config['app']['project'] = '0'
             self.stop_app()
             self.stop_midi_processing()
             self.start_app()
@@ -253,7 +268,7 @@ class Manager:
             return
         if event.ctrl == 118:
             #LOAD_APP_PROJECT
-            self.__config['app']['project'] = '1'
+            self.__config['app']['project'] = event.value
             self.stop_app()
             self.start_app()
             return
@@ -302,7 +317,7 @@ class Manager:
         pass
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False)
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False) # , '-Xseq'
         self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
@@ -342,7 +357,7 @@ class Manager:
         if self.__display_on == False:
             # start display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'], shell=False)
-            time.sleep(2)
+            time.sleep(4)
             # avoid screen auto shutoff
             subprocess.call(['/usr/bin/xset', 's', 'off'], shell=False)
             subprocess.call(['/usr/bin/xset', '-dpms'], shell=False)
@@ -359,6 +374,7 @@ class Manager:
             # start display service
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'], shell=False)
             # check if display is running before setup as...
+            time.sleep(4)
             self.__virtual_display_on = True
         
         # get opendsp user env and change the DISPLAY to our virtual one    
