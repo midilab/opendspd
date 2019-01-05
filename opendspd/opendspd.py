@@ -163,7 +163,7 @@ class Manager:
             #self.setRealtime(self.__onboard_midi.pid, 4)        
         
         # start checkNewMidi Thread
-        self.__check_midi_thread = threading.Thread(target=self.checkNewMidiInput, args=())
+        self.__check_midi_thread = threading.Thread(target=self.checkNewMidiInput, args=(), daemon=True)
         self.__check_midi_thread.start()     
         
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
@@ -195,24 +195,24 @@ class Manager:
             time.sleep(5)
 
     def checkNewMidiInput(self):
-        while self.__app != None:
-            # to use integrated jackd a2jmidid please add -Xseq to jackd init param
-            jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
-            for midi_port in jack_midi_lsp:
-                if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
-                    continue
-                self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
-                self.__midi_port_in.append(midi_port)
-            
-            # new devices on raw midi layer?
-            #for midi_device in glob.glob("/dev/midi*"):
-            #    if midi_device in self.__midi_devices:
-            #        continue
-            #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
-            #    self.setRealtime(midi_device_proc.pid, 4)  
-            #    self.__midi_devices.append(midi_device)
-            #    self.__midi_devices_procs.append(midi_device_proc)
-            time.sleep(5)
+    #while self.__app != None:
+        # to use integrated jackd a2jmidid please add -Xseq to jackd init param
+        jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
+        for midi_port in jack_midi_lsp:
+            if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+                continue
+            self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
+            self.__midi_port_in.append(midi_port)
+        
+        # new devices on raw midi layer?
+        #for midi_device in glob.glob("/dev/midi*"):
+        #    if midi_device in self.__midi_devices:
+        #        continue
+        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+        #    self.setRealtime(midi_device_proc.pid, 4)  
+        #    self.__midi_devices.append(midi_device)
+        #    self.__midi_devices_procs.append(midi_device_proc)
+        time.sleep(5)
     
     def setRealtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
@@ -332,7 +332,7 @@ class Manager:
     def start_midi(self):
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=2)
-        self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=())
+        self.__midi_processor_thread = threading.Thread(target=self.midi_processor, args=(), daemon=True)
         #self.__midi_processor_thread.daemon = True
         self.__midi_processor_thread.start()
 
@@ -372,6 +372,7 @@ class Manager:
             self.__display_on = True
             
         # start app
+        # SDL_VIDEODRIVER=
         return subprocess.Popen([cmd], env=os.environ.copy(), shell=True)
 
     def start_virtual_display_app(self, cmd):
