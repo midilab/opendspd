@@ -59,6 +59,7 @@ class Manager:
     __virtual_display_on = False
     __visualizer = None
     __visualizer_proc = None
+    __visualizer_thread = None
     
     __config = None
     
@@ -107,7 +108,7 @@ class Manager:
         # start MIDI engine
         self.start_midi()
         # force rtirq to restart
-        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
+        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
 
     def start_visualizer(self):
         # for now only "projectm", so no check...
@@ -196,21 +197,21 @@ class Manager:
     def checkNewMidiInput(self):
         while self.__app != None:
             # to use integrated jackd a2jmidid please add -Xseq to jackd init param
-            #jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
-            #for midi_port in jack_midi_lsp:
-            #    if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
-            #        continue
-            #    self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
-            #    self.__midi_port_in.append(midi_port)
+            jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
+            for midi_port in jack_midi_lsp:
+                if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+                    continue
+                self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
+                self.__midi_port_in.append(midi_port)
             
             # new devices on raw midi layer?
-            for midi_device in glob.glob("/dev/midi*"):
-                if midi_device in self.__midi_devices:
-                    continue
-                midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
-                self.setRealtime(midi_device_proc.pid, 4)  
-                self.__midi_devices.append(midi_device)
-                self.__midi_devices_procs.append(midi_device_proc)
+            #for midi_device in glob.glob("/dev/midi*"):
+            #    if midi_device in self.__midi_devices:
+            #        continue
+            #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+            #    self.setRealtime(midi_device_proc.pid, 4)  
+            #    self.__midi_devices.append(midi_device)
+            #    self.__midi_devices_procs.append(midi_device_proc)
             time.sleep(5)
     
     def setRealtime(self, pid, inc=0):
@@ -233,14 +234,14 @@ class Manager:
 
     def load_config(self):
         self.__config.read(USER_DATA + '/system.cfg')
+
         # audio setup
         # video setup
         # midi setup
         # app defaults
-
         if "visualizer" in self.__config:   
             self.__visualizer = self.__config["visualizer"]   
-        
+            
         # if system config file does not exist, load default values
         if len(self.__config) == 0:
             # audio defaults
@@ -254,7 +255,8 @@ class Manager:
             # app defaults
             self.__config['app']['name'] = 'plugmod'
             self.__config['app']['project'] = '1'
-            
+            return
+        
     def midi_processor_queue(self, event):
         #event.value
         if event.ctrl == 119:
@@ -281,6 +283,10 @@ class Manager:
         if event.ctrl == 115:
             #LOAD_APP_SAVE_AS
             return
+        #if event.ctrl == 114:
+        #    # restart opendspd
+        #    subprocess.call(['/sbin/sudo', '/usr/bin/systemctl', 'restart', 'opendsp'])
+        #    return
         # previous visualizer preset    
         if event.ctrl == 20:       
             self.set_visualizer_preset('prev')
@@ -317,7 +323,7 @@ class Manager:
         pass
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period']], shell=False) # , '-Xseq'
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False) # , '-Xseq'
         self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
@@ -362,7 +368,7 @@ class Manager:
             subprocess.call(['/usr/bin/xset', 's', 'off'], shell=False)
             subprocess.call(['/usr/bin/xset', '-dpms'], shell=False)
             subprocess.call(['/usr/bin/xset', 's', 'noblank'], shell=False)
-            # check if display is running before setup as...
+            # TODO: check if display is running before setup as...
             self.__display_on = True
             
         # start app
