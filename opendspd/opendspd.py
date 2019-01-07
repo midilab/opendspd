@@ -213,7 +213,7 @@ class Manager:
             # remove the package from /updates dir and leave user a note about the update
             subprocess.call(['/bin/rm', package_path], shell=False)
             log_file = open(self.__data_path + '/updates/log.txt','a')
-            log_file.write(datetime.datetime.now() + ': package ' + package_path + ' updated successfully')
+            log_file.write(tr(datetime.datetime.now()) + ': package ' + package_path + ' updated successfully')
             log_file.close()
             if 'opendspd' in package_path:
                 # restart our self
