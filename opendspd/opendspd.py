@@ -30,7 +30,7 @@ USER_DATA = "/home/opendsp/data"
 EXTERNAL_DATA = "/home/opendsp/external"
 
 # Realtime Priority
-REALTIME_PRIO = 95
+REALTIME_PRIO = 45
 
 class Manager:
 
@@ -249,13 +249,12 @@ class Manager:
         usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
-        #subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
-        #parent = psutil.Process(pid)
-        #children = parent.children(recursive=True)
-        #for process in children:
-        #    subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
-        pass
-
+        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+        for process in children:
+            subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
+        
     def load_config(self):
         self.__config.read(USER_DATA + '/system.cfg')
 
@@ -347,7 +346,7 @@ class Manager:
         pass
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-P' + str(REALTIME_PRIO+4), '-t3000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False) # , '-Xseq'
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False) # , '-Xseq'
         self.setRealtime(self.__jack.pid, 4)
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
