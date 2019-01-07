@@ -63,8 +63,11 @@ class djing(App):
         # free cache memory before start mixxx, on small ram size embeded devices like raspberry - 1GB ram.
         #subprocess.call("/sbin/sudo /bin/sh -c 'echo 3 >/proc/sys/vm/drop_caches'")
         # we need the --developer option to enable midi through alsa interface
-        self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
-        #time.sleep(10)
+        if self.odsp.isUsingOnBoardUart():
+            self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
+        else:
+            self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx')
+        #time.sleep(5)
         self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):

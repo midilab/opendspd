@@ -428,6 +428,9 @@ class Manager:
     def getJackClient(self):
         return self.__jack_client
 
+    def isUsingOnBoardUart(self):
+        return self.__config['midi'].getboolean('onboard-uart')
+
     def set_visualizer_preset(self, preset):
         if preset == 'prev':
             subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'p'])
