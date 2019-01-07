@@ -101,6 +101,11 @@ class Manager:
         self.__run = False
 
     def init(self):
+        # check first run script created per platform
+        if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
+            subprocess.call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'], shell=True)
+            subprocess.call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'], shell=True)
         # load user config files
         self.load_config()
         # start Audio engine
