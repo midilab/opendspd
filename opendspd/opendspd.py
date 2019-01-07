@@ -100,11 +100,19 @@ class Manager:
             del self.__app  
         self.__run = False
 
+    def mountFs(self, action):
+        if 'write'in action: 
+            subprocess.call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'], shell=True)
+        elif 'read' in action:
+            subprocess.call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'], shell=True)
+            
     def init(self):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
+            self.mountFs('write')
             subprocess.call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'], shell=True)
             subprocess.call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
+            self.mountFs('read')
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'], shell=True)
         # load user config files
         self.load_config()
@@ -118,7 +126,7 @@ class Manager:
     def start_visualizer(self):
         # for now only "projectm", so no check...
         self.__visualizer_proc = self.start_display_app('/usr/bin/projectM-jack')
-        self.setRealtime(self.__visualizer_proc.pid, -50)
+        self.setRealtime(self.__visualizer_proc.pid, -15)
         # wait projectm to comes up and them set it full screen
         time.sleep(20)
         subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'f'])
