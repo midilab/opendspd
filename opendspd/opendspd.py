@@ -202,11 +202,18 @@ class Manager:
             time.sleep(5)
 
     def check_updates(self):
-        update_pkgs = glob.glob(self.odsp.getDataPath() + '/updates/*.pkg.tar.xz')
+        update_pkgs = glob.glob(self.__data_path + '/updates/*.pkg.tar.xz')
         # any update package?
         for package_path in update_pkgs:
+            # install package
             subprocess.call(['/sbin/sudo', '/sbin/pacman', '--noconfirm', '-U', package_path], shell=False)
+            # any systemd changes?
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'daemon-reload', package_path], shell=False)
+            # remove the package from /updates dir and leave user a note about the update
             subprocess.call(['/bin/rm', package_path], shell=False)
+            log_file = open(self.__data_path + '/updates/log.txt','a')
+            log_file.write(datetime.datetime.now() + ': package ' + package_path + ' updated successfully')
+            log_file.close()
             if 'opendspd' in package_path:
                 # restart our self
                 subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'], shell=False)
