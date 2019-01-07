@@ -193,7 +193,7 @@ class Manager:
         while self.__run:
             # check for update packages each 5th run cycle
             if check_updates_counter == 5:
-                check_updates()
+                self.check_updates()
                 
             if self.__app != None:
                 self.__app.run()
@@ -215,7 +215,7 @@ class Manager:
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
         for midi_port in jack_midi_lsp:
-            if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+            if midi_port in self.__midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
                 continue
             self.__jack_client.connect(midi_port, 'OpenDSP_RT:in_1')
             self.__midi_port_in.append(midi_port)
