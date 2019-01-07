@@ -135,7 +135,7 @@ class Manager:
         subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'n'])
         time.sleep(1)
         # lock preset
-        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
+        #subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
         main_app_out = self.__app.get_main_outs()
         for output in main_app_out:
             try:
