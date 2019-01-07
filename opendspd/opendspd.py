@@ -14,7 +14,7 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 
 # Common system tools
-import os, sys, time, subprocess, threading, importlib, glob, signal, psutil
+import os, sys, time, datetime, subprocess, threading, importlib, glob, signal, psutil
 
 import configparser
 
@@ -194,6 +194,7 @@ class Manager:
             # check for update packages each 5th run cycle
             if check_updates_counter == 5:
                 self.check_updates()
+                check_updates_counter = 0
                 
             if self.__app != None:
                 self.__app.run()
