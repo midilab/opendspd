@@ -52,14 +52,6 @@ class djing(App):
             return
 
     def start(self):
-
-        while self.__opendsp_midi_connected == False:
-            try:
-                self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
-                self.__opendsp_midi_connected = True
-            except:
-                pass
-                
         # free cache memory before start mixxx, on small ram size embeded devices like raspberry - 1GB ram.
         #subprocess.call("/sbin/sudo /bin/sh -c 'echo 3 >/proc/sys/vm/drop_caches'")
         # we need the --developer option to enable midi through alsa interface
@@ -71,8 +63,13 @@ class djing(App):
         self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):
-        pass
-
+        if self.__opendsp_midi_connected == False:
+            try:
+                self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
+                self.__opendsp_midi_connected = True
+            except:
+                time.sleep(2)
+                
     def get_main_outs(self):
         return ['Mixxx:out_0', 'Mixxx:out_1']
 

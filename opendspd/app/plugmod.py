@@ -215,7 +215,7 @@ class plugmod(App):
                 # connect  OpenDSP_RT:out_ output to ingen control also... for midi cc map
                 #self.jack.connect('OpenDSP_RT:out_' + str(channel), 'ingen:control')
             except:
-                pass
+                time.sleep(2)
             self.__midi_port_in.append(midi_port)
 
         # check for deleted or renamed port
