@@ -115,7 +115,7 @@ class Manager:
         self.__visualizer_proc = self.start_display_app('/usr/bin/projectM-jack')
         self.setRealtime(self.__visualizer_proc.pid, -50)
         # wait projectm to comes up and them set it full screen
-        time.sleep(60)
+        time.sleep(20)
         subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'f'])
         time.sleep(1)
         # jump to next
@@ -188,14 +188,30 @@ class Manager:
         
         self.__run = True
         
+        check_updates_counter = 5
+        
         while self.__run:
+            # check for update packages each 5th run cycle
+            if check_updates_counter == 5:
+                check_updates()
+                
             if self.__app != None:
                 self.__app.run()
-            # check for update packages on /data/system.cfg
+            
+            check_updates_counter += 1
             time.sleep(5)
 
+    def check_updates(self):
+        update_pkgs = glob.glob(self.odsp.getDataPath() + '/updates/*.pkg.tar.xz')
+        # any update package?
+        for package_path in update_pkgs:
+            subprocess.call(['/sbin/sudo', '/sbin/pacman', '--noconfirm', '-U', package_path], shell=False)
+            subprocess.call(['/bin/rm', package_path], shell=False)
+            if 'opendspd' in package_path:
+                # restart our self
+                subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'], shell=False)
+
     def checkNewMidiInput(self):
-    #while self.__app != None:
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         jack_midi_lsp = map(lambda data: data.name, self.__jack_client.get_ports(is_midi=True, is_output=True))
         for midi_port in jack_midi_lsp:
