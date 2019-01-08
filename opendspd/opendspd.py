@@ -114,6 +114,7 @@ class Manager:
             subprocess.check_call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
             self.mountFs('read')
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'], shell=True)
+            sys.exit()
         # load user config files
         self.load_config()
         # start Audio engine
