@@ -248,8 +248,12 @@ class plugmod(App):
             # Replace /old.lv2 with /new.lv2
             #data = '[] a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
         else:
-            # do what? create a new one?
-            data = ''
+            project_file = glob.glob(self.odsp.getDataPath() + '/' + self.__app_path + '/projects/*.ingen')
+            if len(project_file) > 0:
+                self.__project_bundle = project_file[0]
+                data = '[] a patch:Copy ; patch:subject <file://' + self.__project_bundle + '/> ; patch:destination </main> .\0'
+            else:
+                data = ''
         
         # send initial command
         self.__ingen_socket.send(data.encode('utf-8'))
