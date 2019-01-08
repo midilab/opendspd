@@ -102,16 +102,16 @@ class Manager:
 
     def mountFs(self, action):
         if 'write'in action: 
-            subprocess.call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'], shell=True)
+            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'], shell=True)
         elif 'read' in action:
-            subprocess.call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'], shell=True)
+            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'], shell=True)
             
     def init(self):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
             self.mountFs('write')
-            subprocess.call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'], shell=True)
-            subprocess.call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
+            subprocess.check_call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'], shell=True)
+            subprocess.check_call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
             self.mountFs('read')
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'], shell=True)
         # load user config files
@@ -158,7 +158,7 @@ class Manager:
     def start_midi_processing(self):
         # start on-board midi? (only if your hardware has onboard serial uart)
         if self.__config['midi'].getboolean('onboard-uart') == True:
-            self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', self.__config['midi']['baudrate']], shell=False)
+            self.__onboard_midi = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.__config['midi']['device'], '-b', self.__config['midi']['baudrate']])
             self.setRealtime(self.__onboard_midi.pid, 4)
             connected = False
             while connected == False:
@@ -168,7 +168,7 @@ class Manager:
                 except:
                     # max times to try
                     print('cant found ttymidi jack port... try again')
-                    time.sleep(1)
+                    time.sleep(2)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.__config['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beisde the baudrate?
@@ -359,8 +359,9 @@ class Manager:
         pass
 
     def start_audio(self):
-        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'], shell=False) # , '-Xseq'
+        self.__jack = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.__config['audio']['hardware'], '-r' + self.__config['audio']['rate'], '-p' + self.__config['audio']['buffer'], '-n' + self.__config['audio']['period'], '-Xseq'])
         self.setRealtime(self.__jack.pid, 4)
+                    
         # start our manager client
         self.__jack_client = jack.Client('odsp_manager')
         self.__jack_client.activate()
@@ -384,7 +385,7 @@ class Manager:
         # add one more rule for our internal opendsp management
         # ChannelFilter(16) >> Port(16)
         rule = "ChannelSplit({ " + self.__app.get_midi_processor() + ", 15: Port(15), 16: Port(16) })"
-        self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule], shell=False)
+        self.__mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rule])
         self.setRealtime(self.__mididings.pid, 4)
  
         self.__app.start()
@@ -398,26 +399,26 @@ class Manager:
         # check for display on
         if self.__display_on == False:
             # start display service
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'], shell=False)
-            time.sleep(4)
+            subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
+            #time.sleep(4)
             # avoid screen auto shutoff
-            subprocess.call(['/usr/bin/xset', 's', 'off'], shell=False)
-            subprocess.call(['/usr/bin/xset', '-dpms'], shell=False)
-            subprocess.call(['/usr/bin/xset', 's', 'noblank'], shell=False)
+            subprocess.check_call(['/usr/bin/xset', 's', 'off'])
+            subprocess.check_call(['/usr/bin/xset', '-dpms'])
+            subprocess.check_call(['/usr/bin/xset', 's', 'noblank'])
             # TODO: check if display is running before setup as...
             self.__display_on = True
             
         # start app
         # SDL_VIDEODRIVER=
-        return subprocess.Popen([cmd], env=os.environ.copy(), shell=True)
+        return subprocess.Popen(cmd.split(" "), env=os.environ.copy())
 
     def start_virtual_display_app(self, cmd):
         # check for display on
         if self.__virtual_display_on == False:
             # start display service
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'], shell=False)
+            subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'])
             # check if display is running before setup as...
-            time.sleep(4)
+            #time.sleep(4)
             self.__virtual_display_on = True
         
         # get opendsp user env and change the DISPLAY to our virtual one    
@@ -425,7 +426,7 @@ class Manager:
         environment["DISPLAY"] = ":1"
     
         # start virtual display app
-        return subprocess.Popen([cmd], env=environment, stdout=subprocess.PIPE, shell=True)
+        return subprocess.Popen(cmd.split(" "), env=environment)
              
     def getDataPath(self):
         return self.__data_path

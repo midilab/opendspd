@@ -59,7 +59,7 @@ class djing(App):
             self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
         else:
             self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx')
-        time.sleep(10)
+        #time.sleep(10)
         self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):
@@ -68,7 +68,7 @@ class djing(App):
                 self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
                 self.__opendsp_midi_connected = True
             except:
-                time.sleep(2)
+                pass
                 
     def get_main_outs(self):
         return ['Mixxx:out_0', 'Mixxx:out_1']
