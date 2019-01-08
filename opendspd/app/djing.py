@@ -59,7 +59,7 @@ class djing(App):
             self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
         else:
             self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx')
-        #time.sleep(10)
+        time.sleep(10)
         self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):

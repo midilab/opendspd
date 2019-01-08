@@ -404,7 +404,7 @@ class Manager:
         if self.__display_on == False:
             # start display service
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
-            time.sleep(5)
+            time.sleep(10)
             # avoid screen auto shutoff
             subprocess.check_call(['/usr/bin/xset', 's', 'off'])
             subprocess.check_call(['/usr/bin/xset', '-dpms'])
@@ -422,7 +422,7 @@ class Manager:
             # start display service
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'])
             # check if display is running before setup as...
-            time.sleep(5)
+            time.sleep(10)
             self.__virtual_display_on = True
         
         # get opendsp user env and change the DISPLAY to our virtual one    
