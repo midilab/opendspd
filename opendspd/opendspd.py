@@ -137,12 +137,6 @@ class Manager:
         time.sleep(1)
         # lock preset
         #subprocess.check_call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
-        main_app_out = self.__app.get_main_outs()
-        for output in main_app_out:
-            try:
-                self.__jack_client.connect(output, 'projectM-jack:input')
-            except:
-                pass
 
     def stop_midi_processing(self):
         self.__mididings.kill()
@@ -454,3 +448,5 @@ class Manager:
         elif preset == 'lock':
             subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
             
+    def getVisualizer(self):
+        return self.__visualizer_proc

@@ -136,12 +136,6 @@ class plugmod(App):
         #    #self.odsp.setRealtime(self.__ingen_client.pid)
         #    self.__is_vdisplay_on = True
 
-    def get_main_outs(self):
-        if self.__mixer != None:
-            return ['mixer:channel_1', 'mixer:channel_2']
-        else:
-            return self.__audio_port_out
-        
     def manageAudioConnections(self):
         # filter data to get only ingen for outputs:
         # outputs
@@ -156,6 +150,10 @@ class plugmod(App):
                     self.jack.connect(audio_port, 'mixer:channel_' + str(channel))
                 else:
                     self.jack.connect(audio_port, 'system:playback_' + str(channel))
+                
+                if self.odsp.getVisualizer() != None:
+                    self.jack.connect(audio_port, 'projectM-jack:input')
+                    
             except:
                 pass
             self.__audio_port_out.append(audio_port)

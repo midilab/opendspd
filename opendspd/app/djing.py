@@ -63,15 +63,21 @@ class djing(App):
         self.odsp.setRealtime(self.__mixxx.pid)
         
     def run(self):
+        
+        if self.odsp.getVisualizer() != None and self.__visualizer_on == False:
+            try:
+                self.__jack_client.connect('Mixxx:out_0', 'projectM-jack:input')
+                self.__jack_client.connect('Mixxx:out_1', 'projectM-jack:input')
+                self.__visualizer_on = True
+            except:
+                pass
+        
         if self.__opendsp_midi_connected == False:
             try:
                 self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
                 self.__opendsp_midi_connected = True
             except:
                 pass
-                
-    def get_main_outs(self):
-        return ['Mixxx:out_0', 'Mixxx:out_1']
 
     def stop(self):
         #client.close()

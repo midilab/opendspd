@@ -42,10 +42,6 @@ class App(metaclass=ABCMeta):
     @abstractmethod
     def get_midi_processor(self):
         pass
-
-    @abstractmethod
-    def get_main_outs(self):
-        pass
     
     @abstractmethod    
     def midi_processor_queue(self, event):
