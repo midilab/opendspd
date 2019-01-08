@@ -204,6 +204,9 @@ class Manager:
         
         check_updates_counter = 5
         
+        # set main PCM to max gain volume
+        subprocess.check_call(['/bin/amixer', 'sset', 'PCM,0', '100%'])
+        
         while self.__run:
             # check for update packages each 5th run cycle
             if check_updates_counter == 5:
