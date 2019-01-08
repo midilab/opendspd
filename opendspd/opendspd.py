@@ -401,7 +401,7 @@ class Manager:
         if self.__display_on == False:
             # start display service
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
-            #time.sleep(4)
+            time.sleep(5)
             # avoid screen auto shutoff
             subprocess.check_call(['/usr/bin/xset', 's', 'off'])
             subprocess.check_call(['/usr/bin/xset', '-dpms'])
