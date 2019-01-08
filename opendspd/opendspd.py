@@ -102,18 +102,18 @@ class Manager:
 
     def mountFs(self, action):
         if 'write'in action: 
-            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'], shell=True)
+            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'])
         elif 'read' in action:
-            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'], shell=True)
+            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'])
             
     def init(self):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
             self.mountFs('write')
-            subprocess.check_call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'], shell=True)
+            subprocess.check_call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'])
             subprocess.check_call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
             self.mountFs('read')
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'], shell=True)
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'reboot'])
             sys.exit()
         # load user config files
         self.load_config()
@@ -130,13 +130,13 @@ class Manager:
         self.setRealtime(self.__visualizer_proc.pid, -15)
         # wait projectm to comes up and them set it full screen
         time.sleep(20)
-        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'f'])
+        subprocess.check_call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'f'])
         time.sleep(1)
         # jump to next
-        subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'n'])
+        subprocess.check_call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'n'])
         time.sleep(1)
         # lock preset
-        #subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
+        #subprocess.check_call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'l'])
         main_app_out = self.__app.get_main_outs()
         for output in main_app_out:
             try:
