@@ -56,13 +56,12 @@ class Core:
     jack = None
     mididings = None
     
-    #
     midi_port_in = []    
     midi_onboard_proc = None
     midi_devices_proc = [] 
     midi_devices = []  
 
-	# app data
+    # app data
     app = None
     app_name = None
     app_midi_processor = None
