@@ -14,74 +14,72 @@
 # GNU General Public License for more details.
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
-
-import time, subprocess, os, socket, glob
+import time
+import subprocess
+import os
+import socket
+import glob
 
 # import abstract App class interface
 from . import App
 
 class djing(App):
 
-    __mixxx = None
+    mixxx = None
 
-    __app_path = 'djing'
-    __project_bundle = None
+    app_path = 'djing'
+    midi_channel = 14
+    
+    project_bundle = None
 
-    # addons
-    # internal mixer mode use ecasound as main virtual mixing console
-    # external mixer mode directs each module output to his mirroed number on system output
-    __mixer = None # external, no internal mixer is the default 'internal' # 'external'
+    opendsp_midi_connected = False
     
-    __opendsp_midi_connected = False
-    
-    __project = None
-    __bank = None
-    
-    def __del__(self):
-        self.__mixxx.kill()
-            
-    def get_midi_processor(self):
-        # realtime midi processing routing rules - based on mididings environment
-        self.__midi_processor = str(14) + ": Channel(1) >> Port(1)"
-        return self.__midi_processor 
-
-    # CTRL events on channel 15
-    def midi_processor_queue(self, event):
-        #event.value
-        if event.ctrl == 119:
-            return
+    project = None
+    bank = None
 
     def start(self):
-        # free cache memory before start mixxx, on small ram size embeded devices like raspberry - 1GB ram.
-        #subprocess.call("/sbin/sudo /bin/sh -c 'echo 3 >/proc/sys/vm/drop_caches'")
         # we need the --developer option to enable midi through alsa interface
-        if self.odsp.isUsingOnBoardUart():
-            self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx --developer')
+        if self.opendsp.config['midi'].getboolean('onboard-uart'):
+            self.mixxx = self.opendsp.virtual_display('/usr/bin/mixxx --developer')
         else:
-            self.__mixxx = self.odsp.start_virtual_display_app('/usr/bin/mixxx')
+            self.mixxx = self.opendsp.virtual_display('/usr/bin/mixxx')
         time.sleep(10)
-        self.odsp.setRealtime(self.__mixxx.pid)
+        self.opendsp.set_realtime(self.mixxx.pid)
         
     def run(self):
-        
-        if self.odsp.getVisualizer() != None and self.__visualizer_on == False:
+        if self.opendsp.visualizer_proc != None and self.visualizer_on == False:
             try:
-                self.__jack_client.connect('Mixxx:out_0', 'projectM-jack:input')
-                self.__jack_client.connect('Mixxx:out_1', 'projectM-jack:input')
-                self.__visualizer_on = True
+                self.opendsp.jack.connect('Mixxx:out_0', 'projectM-jack:input')
+                self.opendsp.jack.connect('Mixxx:out_1', 'projectM-jack:input')
+                self.visualizer_on = True
             except:
                 pass
-        
-        if self.__opendsp_midi_connected == False:
+        if self.opendsp_midi_connected == False:
             try:
-                self.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
-                self.__opendsp_midi_connected = True
+                self.opendsp.jack.connect('OpenDSP_RT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
+                self.opendsp_midi_connected = True
             except:
                 pass
 
     def stop(self):
-        #client.close()
         pass
+
+    def __del__(self):
+        self.mixxx.kill()
+            
+    def get_midi_processor(self):
+        # realtime midi processing routing rules - based on mididings environment
+        return "{channel}: Channel(1) >> Port(1)".format(channel=self.midi_channel)
+
+    # CTRL events on channel MIDI_CHANNEL
+    def midi_processor_queue(self, event):
+        #event.value
+        #event.data1
+        #event.data2
+        #event.channel
+        #event.type
+        if event.ctrl == 119:
+            return
 
     def load_project(self, project):
         pass
@@ -89,12 +87,5 @@ class djing(App):
     def save_project(self, project):
         pass
 
-    def load_project_request(self, event):
-        self.load_project(event.data2)
-
-    def save_project_request(self, event):
-        self.save_project(event.data2)
-
-    def program_change(self, event): #program, bank):
+    def program_change(self, program, bank):
         pass
-        #print("opendsp event incomming: " + str(event.data1) + ":" + str(event.data2) + ":" + str(event.channel) + ":" + str(event.type))

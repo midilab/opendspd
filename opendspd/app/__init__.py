@@ -2,20 +2,15 @@ from abc import ABCMeta, abstractmethod
 
 class App(metaclass=ABCMeta):
     
-    odsp = None
-    params = None
-                
-    def __init__(self, openDspManager):
-        self.odsp = openDspManager
-        # set params
-        self.params = self.odsp.getAppParams()
-        self.jack = self.odsp.getJackClient()
+    def __init__(self, opendsp_core):
+        self.opendsp = opendsp_core
+        self.params = self.opendsp.config['app']
 
     @abstractmethod
     def start(self):
         """ Get app ecosystem up and running
 
-        Blah...
+        Prepare your OpenDSP app environment before run()
         """                     
         pass
  
@@ -27,7 +22,7 @@ class App(metaclass=ABCMeta):
     def run(self):
         """ All the app lifecyle
 
-        This method is called inside a thread and it never returns
+        Called by Core in endless cycles 
         """                     
         pass
          
