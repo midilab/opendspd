@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # OpenDSP Plugmod Application
-# Copyright (C) 2015-2018 Romulo Silva <contact@midilab.co>
+# Copyright (C) 2015-2019 Romulo Silva <contact@midilab.co>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -60,7 +60,7 @@ class plugmod(App):
             self.virtual_desktop = self.params["virtual_desktop"]
 
         # start main lv2 host. ingen
-        # clean environment, sometimes client creates a config file that mess with server later
+        # clean environment, sometimes client creates a config file that mess with server init
         try:
             for sock in glob.glob("/tmp/ingen.sock*"):
                 os.remove(sock)
@@ -126,9 +126,9 @@ class plugmod(App):
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', audio_port).group())     
                 if self.mixer != None:
-                    self.opendsp.jack.connect(audio_port, 'mixer:channel_' + str(channel))
+                    self.opendsp.jack.connect(audio_port, "mixer:channel_{channel}".format(channel))
                 else:
-                    self.opendsp.jack.connect(audio_port, 'system:playback_' + str(channel))
+                    self.opendsp.jack.connect(audio_port, "system:playback_{channel}".format(channel))
                 
                 if self.opendsp.visualizer_proc != None:
                     self.opendsp.jack.connect(audio_port, 'projectM-jack:input')
@@ -145,7 +145,7 @@ class plugmod(App):
                 try:
                     # get the channel based on any number present on port name
                     channel = int(re.search(r'\d+', mixer_port).group())     
-                    self.opendsp.jack.connect(mixer_port, 'system:playback_' + str(channel))
+                    self.opendsp.jack.connect(mixer_port, "system:playback_{channel}".format(channel))
                 except:
                     pass
                 self.mixer_port_out.append(mixer_port)
@@ -165,7 +165,7 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', audio_port).group())    
-                self.opendsp.jack.connect(audio_port, 'system:capture_' + str(channel))
+                self.opendsp.jack.connect(audio_port, "system:capture_{channel}".format(channel))
             except:
                 pass
             self.audio_port_in.append(audio_port)
@@ -187,9 +187,9 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', midi_port).group())  
-                self.opendsp.jack.connect('OpenDSP_RT:out_' + str(channel), midi_port)
+                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel), midi_port)
                 # connect OpenDSP_RT:out_ output to ingen control also... for midi cc map
-                self.opendsp.jack.connect('OpenDSP_RT:out_' + str(channel), 'ingen:control')
+                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel), 'ingen:control')
             except:
                 time.sleep(2)
             self.midi_port_in.append(midi_port)
@@ -227,12 +227,12 @@ class plugmod(App):
 
     def load_project(self, project):
         data = ''
-        self.project = str(project)
+        self.project = project
         #self.bank = bank
 
         # get project name by prefix number
         # list all <project>_*, get first one
-        project_file = glob.glob(self.opendsp.data_path + '/' + self.app_path + '/projects/*_' + str(project) + '.ingen')
+        project_file = glob.glob("{data_path}/{app_path}/projects/*_{project}.ingen".format(data_path=self.opendsp.data_path, app_path=self.app_path, project=project))
         if len(project_file) > 0:
             self.project_bundle = project_file[0]
             # send load bundle request and also unload old bundle in case we have anything loaded
@@ -244,12 +244,12 @@ class plugmod(App):
             # Replace /old.lv2 with /new.lv2
             #data = '[] a patch:Patch ; patch:subject </> ; patch:remove [ ingen:loadedBundle <file:///old.lv2/> ]; patch:add [ ingen:loadedBundle <file:///new.lv2/> ] .\0'
         else:
-            project_file = glob.glob(self.opendsp.data_path + '/' + self.app_path + '/projects/*.ingen')
+            project_file = glob.glob("{data_path}/{app_path}/projects/*.ingen".format(data_path=self.opendsp.data_path, app_path=self.app_path))
             if len(project_file) > 0:
                 self.project_bundle = project_file[0]
-                data = '[] a patch:Copy ; patch:subject <file://' + self.project_bundle + '/> ; patch:destination </main> .\0'
+                data = "[] a patch:Copy ; patch:subject <file://{project_bundle}/> ; patch:destination </main> .\\0".format(project_bundle=self.project_bundle)
             else:
-                data = ''
+                data = ""
         
         # send command
         self.ingen_socket.send(data.encode('utf-8'))
@@ -259,7 +259,7 @@ class plugmod(App):
         #data = '[] a patch:Delete ; patch:subject </main> ; patch:body [ a ingen:Arc ; ingen:incidentTo </main> ] .\0'
         #self.ingen_socket.send(data.encode('utf-8'))
         #data = '[] a patch:Delete ; patch:subject </main> .\0'
-        data = '[] a patch:Delete ; patch:subject </main/*> .\0'
+        data = "[] a patch:Delete ; patch:subject </main/*> .\\0"
         self.ingen_socket.send(data.encode('utf-8'))
         
     def save_project(self, project):
@@ -271,7 +271,7 @@ class plugmod(App):
         self.opendsp.set_realtime(self.ecasound.pid)
 
         # load mixer config setup
-        cmd = 'cs-load ' + self.opendsp.data_path + '/' + self.app_path + '/mixer/' + self.mixer + '.ecs\n'
+        cmd = "cs-load {data_path}/{app_path}/mixer/{mixer}.ecs\\n".format(data_path=self.opendsp.data_path, app_path=self.app_path, mixer=self.mixer)
         self.ecasound.stdin.write(cmd.encode())
         self.ecasound.stdin.flush()
         self.ecasound.stdin.write(b'start\n')

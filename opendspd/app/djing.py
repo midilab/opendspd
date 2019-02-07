@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-# OpenDSP Plugmod Application
-# Copyright (C) 2015-2018 Romulo Silva <contact@midilab.co>
+# OpenDSP Djing Application
+# Copyright (C) 2015-2019 Romulo Silva <contact@midilab.co>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -39,7 +39,7 @@ class djing(App):
 
     def start(self):
         # we need the --developer option to enable midi through alsa interface
-        if self.opendsp.config['midi'].getboolean('onboard-uart'):
+        if 'midi' in self.opendsp.config:
             self.mixxx = self.opendsp.virtual_display('/usr/bin/mixxx --developer')
         else:
             self.mixxx = self.opendsp.virtual_display('/usr/bin/mixxx')

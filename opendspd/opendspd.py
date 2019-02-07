@@ -1,5 +1,7 @@
+# -*- coding: utf-8 -*-
+
 # OpenDSP Core Daemon
-# Copyright (C) 2015-2018 Romulo Silva <contact@midilab.co>
+# Copyright (C) 2015-2019 Romulo Silva <contact@midilab.co>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License as
@@ -200,12 +202,12 @@ class Core:
         self.midi_devices_procs = []
         self.midi_devices = []
         self.thread_check_midi = None
-        if self.config['midi'].getboolean('onboard-uart') == True:
+        if 'midi' in self.config:
             self.midi_onboard_proc.kill()
             
     def start_midi_processing(self):
         # start on-board midi? (only if your hardware has onboard serial uart)
-        if self.config['midi'].getboolean('onboard-uart') == True:
+        if 'midi' in self.config:
             self.midi_onboard_proc = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.config['midi']['device'], '-b', self.config['midi']['baudrate']])
             self.set_realtime(self.midi_onboard_proc.pid, 4)
             connected = False
@@ -391,7 +393,7 @@ class Core:
 
     def start_app(self):
         self.app_name = self.config['app']['name']
-        module = importlib.import_module('opendspd.app.' + self.app_name)
+        module = importlib.import_module("opendspd.app.{app_name}".format(app_name=self.app_name))
         app_class = getattr(module, self.app_name)
         self.app = app_class(self._singleton)
         self.app_midi_processor = self.app.get_midi_processor()
