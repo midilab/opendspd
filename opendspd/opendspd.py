@@ -281,10 +281,6 @@ class Core:
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for process in children:
-            subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(process.pid)], shell=False)
         
     def load_config(self):
         self.config.read(USER_DATA + '/system.cfg')
@@ -300,42 +296,54 @@ class Core:
         if len(self.config) == 0:
             # audio defaults
             self.config['audio']['rate'] = '48000'
-            self.config['audio']['period'] = '3'
+            self.config['audio']['period'] = '8'
             self.config['audio']['buffer'] = '256'
-            self.config['audio']['hardware'] = '0,0'
+            self.config['audio']['hardware'] = 'hw:0,0'
             # video defaults
             #self.config['visualizer']
             # midi setup
             # app defaults
-            self.config['app']['name'] = 'plugmod'
-            self.config['app']['project'] = '1'
+            self.config['user']['app'] = self.get_app_name_by_id(0)
+            self.app_name = self.config['user']['app']
+            self.config[self.app_name]['project'] = '1'
+            self.config[self.app_name]['mixer'] = 'mixer422'
+            self.config[self.app_name]['virtual_desktop'] = True
+            self.config[self.app_name]['sequencer'] = 'sequencer64'
             return
         
+    def get_app_name_by_id(self, id):
+        return self.app_program_id.get(id, 0)
+        
+    def save_config(self):
+        self.config.write(USER_DATA + '/system.cfg')
+
+    def load_app(self, app_name):
+        self.config['user']['app'] = app_name
+        self.app_name = self.config['user']['app']
+        if 'project' not in self.config[self.app_name]:
+            self.config[self.app_name]['project'] = '1'
+        self.stop_app()
+        self.stop_midi_processing()
+        self.start_app()
+        self.start_midi_processing()
+
     def midi_processor_queue(self, event):
         #event.value
         if event.ctrl == 119:
             #LOAD_APP
-            self.config['app']['name'] = self.get_app_name_by_id(event.value)
-            self.config['app']['project'] = '0'
-            self.stop_app()
-            self.stop_midi_processing()
-            self.start_app()
-            self.start_midi_processing()
+            self.load_app(self.get_app_name_by_id(event.value))
             return
         if event.ctrl == 118:
-            #LOAD_APP_PROJECT
-            self.config['app']['project'] = event.value
-            self.stop_app()
-            self.start_app()
+            #...
             return
         if event.ctrl == 117:
-            #LOAD_APP_NEXT_PROJECT
+            #...
             return
         if event.ctrl == 116:
-            #LOAD_APP_PREV_PROJECT
+            #...
             return
         if event.ctrl == 115:
-            #LOAD_APP_SAVE_AS
+            #...
             return
         #if event.ctrl == 114:
         #    # restart opendspd
@@ -370,6 +378,8 @@ class Core:
             ]
         )
 
+    # interface definitions
+    # one generic interface and a device-to-interface translate table for keyboard, mouse, midi and osc
     def osc_processor(self):
         pass
 
@@ -392,7 +402,7 @@ class Core:
         self.thread_midi_processor.start()
 
     def start_app(self):
-        self.app_name = self.config['app']['name']
+        self.app_name = self.config['user']['app']
         module = importlib.import_module("opendspd.app.{app_name}".format(app_name=self.app_name))
         app_class = getattr(module, self.app_name)
         self.app = app_class(self._singleton)
@@ -405,7 +415,7 @@ class Core:
         rules = "ChannelSplit({{ {app_rules}, 15: Port(15), 16: Port(16) }})".format(app_rules=self.app_midi_processor)
         self.mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rules])
         self.set_realtime(self.mididings.pid, 4)
- 
+
         self.app.start()
 
     def stop_app(self):
@@ -425,7 +435,7 @@ class Core:
             subprocess.check_call(['/usr/bin/xset', 's', 'noblank'])
             # TODO: check if display is running before setup as...
             self.display_on = True
-            
+
         # start app
         # SDL_VIDEODRIVER=
         return subprocess.Popen(cmd.split(" "), env=os.environ.copy())
@@ -442,10 +452,10 @@ class Core:
         # get opendsp user env and change the DISPLAY to our virtual one    
         environment = os.environ.copy()
         environment["DISPLAY"] = ":1"
-    
+
         # start virtual display app
         return subprocess.Popen(cmd.split(" "), env=environment)
-             
+
     def set_visualizer_preset(self, preset):
         if preset == 'prev':
             subprocess.call(['/usr/bin/xdotool', 'search', '--name', 'projectM', 'windowfocus', 'key', 'p'])

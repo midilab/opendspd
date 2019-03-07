@@ -4,7 +4,7 @@ class App(metaclass=ABCMeta):
     
     def __init__(self, opendsp_core):
         self.opendsp = opendsp_core
-        self.params = self.opendsp.config['app']
+        self.params = self.opendsp.config[self.opendsp.app_name]
 
     @abstractmethod
     def start(self):

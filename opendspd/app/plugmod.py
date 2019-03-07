@@ -109,11 +109,45 @@ class plugmod(App):
             self.load_mixer(self.mixer)          
         
         self.load_project(self.params["project"])
-        
+
+    def stop(self):
+        pass
+
     def run(self):
         # connect all the midi and audio from outside world to ingen world
         self.manage_audio_connections()
         self.manage_midi_connections()
+
+    def midi_processor_queue(self, event):
+        #event.value
+        if event.ctrl == 119:
+            #LOAD_PROJECT
+            self.load_project(event.value)
+        if event.ctrl == 118:
+            #NEW PROJECT
+            self.new_project()
+            return
+        if event.ctrl == 117:
+            #LOAD_APP_NEXT_PROJECT
+            self.load_project(project+1)
+            return
+        if event.ctrl == 116:
+            #LOAD_APP_PREV_PROJECT
+            self.load_project(project-1)
+            return
+        if event.ctrl == 115:
+            #SAVE_PROJECT
+            self.save_project()
+            return
+
+    def get_midi_processor(self):
+        midi_processor = ""
+        for x in range(1,4):
+            # realtime midi processing routing rules - based on mididings environment
+            midi_processor += "{channel}: Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port({channel}), ".format(channel=x)
+        if self.mixer != None:
+            midi_processor += "{channel}: Filter(CTRL) >> Channel(1) >> Port({channel}), ".format(channel=14)
+        return midi_processor[:-2]
 
     def manage_audio_connections(self):
         # filter data to get only ingen for outputs:
@@ -205,25 +239,6 @@ class plugmod(App):
         self.ingen.kill()
         if self.mixer != None:
             self.ecasound.kill()
-    
-    def midi_processor_queue(self, event):
-        #event.value
-        if event.ctrl == 119:
-            #NEW PROJECT
-            self.new_project()
-            return
-
-    def get_midi_processor(self):
-        midi_processor = ""
-        for x in range(1,4):
-            # realtime midi processing routing rules - based on mididings environment
-            midi_processor += "{channel}: Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port({channel}), ".format(channel=x)
-        if self.mixer != None:
-            midi_processor += "{channel}: Filter(CTRL) >> Channel(1) >> Port({channel}), ".format(channel=14)
-        return midi_processor[:-2]
-
-    def stop(self):
-        pass
 
     def load_project(self, project):
         data = ''
