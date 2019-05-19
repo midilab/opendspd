@@ -37,7 +37,8 @@ import jack
 USER_DATA = "/home/opendsp/data"
 
 # Realtime Priority
-REALTIME_PRIO = 45
+#REALTIME_PRIO = 45
+REALTIME_PRIO = 95
 
 class Core:
     """OpenDSP main core
@@ -91,9 +92,9 @@ class Core:
     
     def __init__(self):        
         # singleton him
-        if Core._singleton:
-            raise Core._singleton
-        Core._singleton = self
+        if Manager._singleton:
+            raise Manager._singleton
+        Manager._singleton = self
         self.config = configparser.ConfigParser()
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -105,8 +106,8 @@ class Core:
             subprocess.check_call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'])
             subprocess.check_call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
             self.mount_fs('read')
-            subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'reboot'])
-            sys.exit()
+            #subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'reboot'])
+            #sys.exit()
         # load user config files
         self.load_config()
         # start Audio engine
@@ -116,7 +117,7 @@ class Core:
         # force rtirq to restart
         #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
     
-    def run(self):
+    def run_manager(self):
         # lets make our daemon realtime priorized, 4 pts above other realtime process
         self.set_realtime(os.getpid(), -4)
 
@@ -218,7 +219,7 @@ class Core:
                 except:
                     # max times to try
                     print('cant found ttymidi jack port... try again')
-                    time.sleep(2)
+                    time.sleep(1)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.config['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beside the baudrate?
@@ -272,14 +273,14 @@ class Core:
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
-        num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
-        usable_procs = ""
-        for i in range(num_proc):
-            if ((i+1)/num_proc) > 0.25:
-                usable_procs = usable_procs + "," + str(i)
-        usable_procs = usable_procs[1:]        
+        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
+        #usable_procs = ""
+        #for i in range(num_proc):
+        #    if ((i+1)/num_proc) > 0.25:
+        #        usable_procs = usable_procs + "," + str(i)
+        #usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         
     def load_config(self):
@@ -289,9 +290,7 @@ class Core:
         # video setup
         # midi setup
         # app defaults
-        if "visualizer" in self.config:   
-            self.visualizer = self.config["visualizer"]   
-            
+
         # if system config file does not exist, load default values
         if len(self.config) == 0:
             # audio defaults
@@ -300,17 +299,21 @@ class Core:
             self.config['audio']['buffer'] = '256'
             self.config['audio']['hardware'] = 'hw:0,0'
             # video defaults
-            #self.config['visualizer']
+            self.config['visualizer']['name'] = 'projectm'
+            self.visualizer = self.config['visualizer']
             # midi setup
             # app defaults
             self.config['user']['app'] = self.get_app_name_by_id(0)
             self.app_name = self.config['user']['app']
             self.config[self.app_name]['project'] = '1'
-            self.config[self.app_name]['mixer'] = 'mixer422'
+            #self.config[self.app_name]['mixer'] = 'mixer422'
             self.config[self.app_name]['virtual_desktop'] = True
-            self.config[self.app_name]['sequencer'] = 'sequencer64'
+            #self.config[self.app_name]['sequencer'] = 'sequencer64'
             return
         
+        if "visualizer" in self.config:   
+            self.visualizer = self.config["visualizer"]   
+                    
     def get_app_name_by_id(self, id):
         return self.app_program_id.get(id, 0)
         
@@ -388,7 +391,7 @@ class Core:
 
     def start_audio(self):
         # start jack server
-        self.jack_server = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.config['audio']['hardware'], '-r' + self.config['audio']['rate'], '-p' + self.config['audio']['buffer'], '-n' + self.config['audio']['period'], '-Xseq'])
+        self.jack_server = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.config['audio']['hardware'], '-r' + self.config['audio']['rate'], '-p' + self.config['audio']['buffer'], '-n' + self.config['audio']['period'], '-Xseq']) #, '-z' + self.config['audio']['dither']])
         self.set_realtime(self.jack_server.pid, 4)
         
         # start jack client

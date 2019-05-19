@@ -152,6 +152,9 @@ class plugmod(App):
     def manage_audio_connections(self):
         # filter data to get only ingen for outputs:
         # outputs
+        #ingen:mixer_return_1
+        #ingen:mixer_channel_1
+        #ingen:mixer_send_1
         jack_audio_lsp = map(lambda data: data.name, self.opendsp.jack.get_ports(name_pattern='ingen', is_audio=True, is_output=True))
         for audio_port in jack_audio_lsp:
             if audio_port in self.audio_port_out:
@@ -160,9 +163,9 @@ class plugmod(App):
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', audio_port).group())     
                 if self.mixer != None:
-                    self.opendsp.jack.connect(audio_port, "mixer:channel_{channel}".format(channel))
+                    self.opendsp.jack.connect(audio_port, "mixer:channel_{channel}".format(channel=channel))
                 else:
-                    self.opendsp.jack.connect(audio_port, "system:playback_{channel}".format(channel))
+                    self.opendsp.jack.connect(audio_port, "system:playback_{channel}".format(channel=channel))
                 
                 if self.opendsp.visualizer_proc != None:
                     self.opendsp.jack.connect(audio_port, 'projectM-jack:input')
@@ -179,7 +182,7 @@ class plugmod(App):
                 try:
                     # get the channel based on any number present on port name
                     channel = int(re.search(r'\d+', mixer_port).group())     
-                    self.opendsp.jack.connect(mixer_port, "system:playback_{channel}".format(channel))
+                    self.opendsp.jack.connect(mixer_port, "system:playback_{channel}".format(channel=channel))
                 except:
                     pass
                 self.mixer_port_out.append(mixer_port)
@@ -192,6 +195,8 @@ class plugmod(App):
             self.audio_port_out.remove(audio_port)                
                 
         # inputs
+        #ingen:audio_in_1
+        #ingen:mixer_send_1
         jack_audio_lsp = map(lambda data: data.name, self.opendsp.jack.get_ports(name_pattern='ingen', is_audio=True, is_input=True))
         for audio_port in jack_audio_lsp:
             if audio_port in self.audio_port_in:
@@ -199,7 +204,7 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', audio_port).group())    
-                self.opendsp.jack.connect(audio_port, "system:capture_{channel}".format(channel))
+                self.opendsp.jack.connect(audio_port, "system:capture_{channel}".format(channel=channel))
             except:
                 pass
             self.audio_port_in.append(audio_port)
@@ -221,11 +226,11 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', midi_port).group())  
-                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel), midi_port)
+                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel=channel), midi_port)
                 # connect OpenDSP_RT:out_ output to ingen control also... for midi cc map
-                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel), 'ingen:control')
+                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel=channel), 'ingen:control')
             except:
-                time.sleep(2)
+                time.sleep(1)
             self.midi_port_in.append(midi_port)
 
         # check for deleted or renamed port
@@ -274,7 +279,7 @@ class plugmod(App):
         #data = '[] a patch:Delete ; patch:subject </main> ; patch:body [ a ingen:Arc ; ingen:incidentTo </main> ] .\0'
         #self.ingen_socket.send(data.encode('utf-8'))
         #data = '[] a patch:Delete ; patch:subject </main> .\0'
-        data = "[] a patch:Delete ; patch:subject </main/*> .\\0"
+        data = '[] a patch:Delete ; patch:subject </main/*> .\0'
         self.ingen_socket.send(data.encode('utf-8'))
         
     def save_project(self, project):
@@ -282,12 +287,12 @@ class plugmod(App):
 
     def load_mixer(self, config):
         # its part of plugmod config, you use as virtual mixer or direct analog output
-        self.ecasound = subprocess.Popen('/usr/bin/ecasound -c', env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
+        self.ecasound = subprocess.Popen(['/usr/bin/ecasound', '-c'], env={'LANG': 'C', 'TERM': 'xterm-256color', 'SHELL': '/bin/bash', 'PATH': '/usr/sbin:/usr/bin:/usr/lib/jvm/default/bin:/usr/bin/site_perl:/usr/bin/vendor_perl:/usr/bin/core_perl', '_': '/usr/bin/opendspd', 'USER': 'opendsp'}, stdin=subprocess.PIPE)
         self.opendsp.set_realtime(self.ecasound.pid)
 
         # load mixer config setup
-        cmd = "cs-load {data_path}/{app_path}/mixer/{mixer}.ecs\\n".format(data_path=self.opendsp.data_path, app_path=self.app_path, mixer=self.mixer)
-        self.ecasound.stdin.write(cmd.encode())
+        cmd = "cs-load {data_path}/{app_path}/mixer/{mixer}.ecs".format(data_path=self.opendsp.data_path, app_path=self.app_path, mixer=self.mixer)
+        self.ecasound.stdin.write(cmd.encode() + b'\n')
         self.ecasound.stdin.flush()
         self.ecasound.stdin.write(b'start\n')
         self.ecasound.stdin.flush()
