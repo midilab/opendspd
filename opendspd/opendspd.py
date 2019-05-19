@@ -92,9 +92,9 @@ class Core:
     
     def __init__(self):        
         # singleton him
-        if Manager._singleton:
-            raise Manager._singleton
-        Manager._singleton = self
+        if Core._singleton:
+            raise Core._singleton
+        Core._singleton = self
         self.config = configparser.ConfigParser()
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
