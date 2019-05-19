@@ -117,7 +117,7 @@ class Core:
         # force rtirq to restart
         #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
     
-    def run_manager(self):
+    def run(self):
         # lets make our daemon realtime priorized, 4 pts above other realtime process
         self.set_realtime(os.getpid(), -4)
 
