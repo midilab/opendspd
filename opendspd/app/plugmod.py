@@ -39,8 +39,7 @@ class plugmod(App):
     mixer = None # external, no internal mixer is the default 'internal' # 'external'
     
     # make use of vdisplay for user app manament via VNC and Xvfb
-    virtual_desktop = None
-    is_vdisplay_on = False
+    display = None
     ingen_client = None
     
     project = None
@@ -56,8 +55,8 @@ class plugmod(App):
         if "mixer" in self.params:
             self.mixer = self.params["mixer"]    
             
-        if "virtual_desktop" in self.params:
-            self.virtual_desktop = self.params["virtual_desktop"]
+        if "display" in self.params:
+            self.display = self.params["display"]
 
         # start main lv2 host. ingen
         # clean environment, sometimes client creates a config file that mess with server init
@@ -69,12 +68,15 @@ class plugmod(App):
         except:
             pass
         
-        if self.virtual_desktop != None:   
+        if self.display == "virtual":   
             self.ingen = self.opendsp.virtual_display("/usr/bin/ingen -eg -f --graph-directory={data_path}/{app_path}/projects/".format(data_path=self.opendsp.data_path, app_path=self.app_path))
-            self.is_vdisplay_on = True  
             # wait client response to start with bundle load             
             time.sleep(4)
-        else:
+        elif self.display == "native":
+            self.ingen = self.opendsp.display("/usr/bin/ingen -eg -f --graph-directory={data_path}/{app_path}/projects/".format(data_path=self.opendsp.data_path, app_path=self.app_path))
+            # wait client response to start with bundle load             
+            time.sleep(4)
+        elif self.display == None:
             self.ingen = subprocess.Popen(['/usr/bin/ingen', '-e', '-d', '-f'])
             
         self.opendsp.set_realtime(self.ingen.pid)
