@@ -152,72 +152,39 @@ class plugmod(App):
         return midi_processor[:-2]
 
     def manage_audio_connections(self):
-        # filter data to get only ingen for outputs:
-        # outputs
-        #ingen:mixer_return_1
-        #ingen:mixer_channel_1
-        #ingen:mixer_send_1
-        jack_audio_lsp = map(lambda data: data.name, self.opendsp.jack.get_ports(name_pattern='ingen', is_audio=True, is_output=True))
-        for audio_port in jack_audio_lsp:
-            if audio_port in self.audio_port_out:
-                continue
-            try:
-                # get the channel based on any number present on port name
-                channel = int(re.search(r'\d+', audio_port).group())     
-                if self.mixer != None:
-                    self.opendsp.jack.connect(audio_port, "mixer:channel_{channel}".format(channel=channel))
-                else:
-                    self.opendsp.jack.connect(audio_port, "system:playback_{channel}".format(channel=channel))
-                
-                if self.opendsp.visualizer_proc != None:
-                    self.opendsp.jack.connect(audio_port, 'projectM-jack:input')
-            except:
-                pass
-            self.audio_port_out.append(audio_port)
+        # iterate over all ingen outputs, check if the on ingen side we got any mapped name following the following:
+        # ingen:system_playback_1 goes to system:playback_1
+        jack_audio_outputs = [data.name for data in self.opendsp.jack.get_ports(is_audio=True, is_output=True)]
+        jack_audio_inputs = [data.name for data in self.opendsp.jack.get_ports(is_audio=True, is_input=True)]
         
-        #
-        if self.mixer != None:
-            jack_audio_lsp = map(lambda data: data.name, self.opendsp.jack.get_ports(name_pattern='mixer', is_audio=True, is_output=True))            
-            for mixer_port in jack_audio_lsp:
-                if mixer_port in self.mixer_port_out:
-                    continue
-                try:
-                    # get the channel based on any number present on port name
-                    channel = int(re.search(r'\d+', mixer_port).group())     
-                    self.opendsp.jack.connect(mixer_port, "system:playback_{channel}".format(channel=channel))
-                except:
-                    pass
-                self.mixer_port_out.append(mixer_port)
-                
-        # check for deleted or renamed port
-        tmp_audio_port_out = self.audio_port_out
-        for audio_port in tmp_audio_port_out:
-            if audio_port in jack_audio_lsp:
+        ingen_audio_outputs = list(filter(lambda output_port: True if 'ingen' in output_port else False, jack_audio_outputs))      
+        system_inputs = list(filter(lambda input_port: True if 'ingen' not in input_port else False, jack_audio_inputs))
+        # create the map abstraction by cut everything before ':' and them replacing first occurence of '_' by ':'
+        ingen_outputs = list(map(lambda output_port: { 'jack': output_port, 'mapped': output_port[output_port.find(':')+1:].replace('_', ':', 1) }, ingen_audio_outputs))
+
+        # outputs
+        for ingen_output in ingen_outputs:
+            if ingen_output['jack'] in self.audio_port_out:
                 continue
-            self.audio_port_out.remove(audio_port)                
-                
+            for system_input in system_inputs:
+                if ingen_output['mapped'] in system_input:
+                    self.opendsp.jack.connect(ingen_output['jack'], system_input)
+                    self.audio_port_out.append(ingen_output['jack'])
+
+        ingen_audio_inputs = list(filter(lambda input_port: True if 'ingen' in input_port else False, jack_audio_inputs))
+        system_outputs = list(filter(lambda output_port: True if 'ingen' not in output_port else False, jack_audio_outputs))
+        # create the map abstraction by cut everything before ':' and them replacing first occurence of '_' by ':'
+        ingen_inputs = list(map(lambda input_port: { 'jack': input_port, 'mapped': input_port[input_port.find(':')+1:].replace('_', ':', 1) }, ingen_audio_inputs))      
+        
         # inputs
-        #ingen:audio_in_1
-        #ingen:mixer_send_1
-        jack_audio_lsp = map(lambda data: data.name, self.opendsp.jack.get_ports(name_pattern='ingen', is_audio=True, is_input=True))
-        for audio_port in jack_audio_lsp:
-            if audio_port in self.audio_port_in:
+        for ingen_input in ingen_inputs:
+            if ingen_input['jack'] in self.audio_port_in:
                 continue
-            try:
-                # get the channel based on any number present on port name
-                channel = int(re.search(r'\d+', audio_port).group())    
-                self.opendsp.jack.connect(audio_port, "system:capture_{channel}".format(channel=channel))
-            except:
-                pass
-            self.audio_port_in.append(audio_port)
-
-        # check for deleted or renamed port
-        tmp_audio_port_in = self.audio_port_in
-        for audio_port in tmp_audio_port_in:
-            if audio_port in jack_audio_lsp:
-                continue
-            self.audio_port_in.remove(audio_port)
-
+            for system_output in system_outputs:
+                if ingen_input['mapped'] in system_output:
+                    self.opendsp.jack.connect(system_output, ingen_input['jack'])
+                    self.audio_port_in.append(ingen_input['jack'])
+                            
     def manage_midi_connections(self):  
         # filter data to get only ingen:
         # input
@@ -228,19 +195,12 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', midi_port).group())  
-                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel=channel), midi_port)
-                # connect OpenDSP_RT:out_ output to ingen control also... for midi cc map
-                self.opendsp.jack.connect("OpenDSP_RT:out_{channel}".format(channel=channel), 'ingen:control')
+                self.opendsp.jack.connect("midi:out_{channel}".format(channel=channel), midi_port)
+                # connect midi:out_ output to ingen control also... for midi cc map
+                self.opendsp.jack.connect("midi:out_{channel}".format(channel=channel), 'ingen:control')
             except:
                 time.sleep(1)
             self.midi_port_in.append(midi_port)
-
-        # check for deleted or renamed port
-        tmp_midi_port_in = self.midi_port_in
-        for midi_port in tmp_midi_port_in:
-            if midi_port in jack_midi_lsp:
-                continue
-            self.midi_port_in.remove(midi_port)
             
     def __del__(self):
         self.ingen.kill()

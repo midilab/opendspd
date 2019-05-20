@@ -141,7 +141,7 @@ class Core:
         
         while self.running:
             # check for update packages each 5th run cycle
-            if check_updates_counter == 5:
+            if check_updates_counter == 60:
                 self.check_updates()
                 check_updates_counter = 0
                 
@@ -149,7 +149,7 @@ class Core:
                 self.app.run()
             
             check_updates_counter += 1
-            time.sleep(5)
+            time.sleep(1)
 
     def __del__(self):
         # check for display on
@@ -214,7 +214,7 @@ class Core:
             connected = False
             while connected == False:
                 try:
-                    self.jack.connect('ttymidi:MIDI_in', 'OpenDSP_RT:in_1')
+                    self.jack.connect('ttymidi:MIDI_in', 'midi:in_1')
                     connected = True
                 except:
                     # max times to try
@@ -223,7 +223,7 @@ class Core:
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.config['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beside the baudrate?
-            #self.midi_onboard_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.config['midi']['device']), '-o', 'OpenDSP_RT:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
+            #self.midi_onboard_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.config['midi']['device']), '-o', 'midi:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
             #self.set_realtime(self.midi_onboard_proc.pid, 4)        
         
         # start checkNewMidi Thread
@@ -231,8 +231,8 @@ class Core:
         self.thread_check_midi.start()     
         
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
-        self.jack.connect('OpenDSP_RT:out_16', 'OpenDSP:in_1')
-        self.jack.connect('OpenDSP_RT:out_15', 'OpenDSP:in_2')        
+        self.jack.connect('midi:out_16', 'OpenDSP:in_1')
+        self.jack.connect('midi:out_15', 'OpenDSP:in_2')        
 
     def check_updates(self):
         update_pkgs = glob.glob(self.data_path + '/updates/*.pkg.tar.xz')
@@ -255,16 +255,16 @@ class Core:
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         jack_midi_lsp = map(lambda data: data.name, self.jack.get_ports(is_midi=True, is_output=True))
         for midi_port in jack_midi_lsp:
-            if midi_port in self.midi_port_in or 'OpenDSP' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+            if midi_port in self.midi_port_in or 'OpenDSP' in midi_port or 'midi' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
                 continue
-            self.jack.connect(midi_port, 'OpenDSP_RT:in_1')
+            self.jack.connect(midi_port, 'midi:in_1')
             self.midi_port_in.append(midi_port)
         
         # new devices on raw midi layer?
         #for midi_device in glob.glob("/dev/midi*"):
         #    if midi_device in self.midi_devices:
         #        continue
-        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'OpenDSP_RT:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'midi:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
         #    self.set_realtime(midi_device_proc.pid, 4)  
         #    self.midi_devices.append(midi_device)
         #    self.midi_devices_procs.append(midi_device_proc)
@@ -273,14 +273,14 @@ class Core:
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
-        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
-        #usable_procs = ""
-        #for i in range(num_proc):
-        #    if ((i+1)/num_proc) > 0.25:
-        #        usable_procs = usable_procs + "," + str(i)
-        #usable_procs = usable_procs[1:]        
+        num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
+        usable_procs = ""
+        for i in range(num_proc):
+            if ((i+1)/num_proc) > 0.25:
+                usable_procs = usable_procs + "," + str(i)
+        usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         
     def load_config(self):
@@ -411,12 +411,12 @@ class Core:
         self.app = app_class(self._singleton)
         self.app_midi_processor = self.app.get_midi_processor()
 
-        # call mididings and set it realtime alog with jack - named OpenDSP_RT
+        # call mididings and set it realtime alog with jack - named midi
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
         # add one more rule for our internal opendsp management
         # ChannelFilter(16) >> Port(16)
         rules = "ChannelSplit({{ {app_rules}, 15: Port(15), 16: Port(16) }})".format(app_rules=self.app_midi_processor)
-        self.mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'OpenDSP_RT', '-o', '16', rules])
+        self.mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midi', '-o', '16', rules])
         self.set_realtime(self.mididings.pid, 4)
 
         self.app.start()
