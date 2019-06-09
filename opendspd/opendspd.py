@@ -58,6 +58,7 @@ class Core:
     jack_server = None
     jack = None
     mididings = None
+    input2midi = None
     
     midi_port_in = []    
     midi_onboard_proc = None
@@ -196,6 +197,7 @@ class Core:
 
     def stop_midi_processing(self):
         self.mididings.kill()
+        self.input2midi.kill()
         # all jamrouter proc
         # TODO: eternal loop bug
         #for device in self.midi_devices_procs:
@@ -206,6 +208,8 @@ class Core:
         if 'midi' in self.config:
             self.midi_onboard_proc.kill()
             
+            
+            
     def start_midi_processing(self):
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.config:
@@ -214,7 +218,7 @@ class Core:
             connected = False
             while connected == False:
                 try:
-                    self.jack.connect('ttymidi:MIDI_in', 'midi:in_1')
+                    self.jack.connect('ttymidi:MIDI_in', 'midiRT:in_1')
                     connected = True
                 except:
                     # max times to try
@@ -231,8 +235,8 @@ class Core:
         self.thread_check_midi.start()     
         
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
-        self.jack.connect('midi:out_16', 'OpenDSP:in_1')
-        self.jack.connect('midi:out_15', 'OpenDSP:in_2')        
+        self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')
+        self.jack.connect('midiRT:out_15', 'OpenDSP:in_2')        
 
     def check_updates(self):
         update_pkgs = glob.glob(self.data_path + '/updates/*.pkg.tar.xz')
@@ -255,9 +259,9 @@ class Core:
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         jack_midi_lsp = map(lambda data: data.name, self.jack.get_ports(is_midi=True, is_output=True))
         for midi_port in jack_midi_lsp:
-            if midi_port in self.midi_port_in or 'OpenDSP' in midi_port or 'midi' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+            if midi_port in self.midi_port_in or 'OpenDSP' in midi_port or 'midiRT' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
                 continue
-            self.jack.connect(midi_port, 'midi:in_1')
+            self.jack.connect(midi_port, 'midiRT:in_1')
             self.midi_port_in.append(midi_port)
         
         # new devices on raw midi layer?
@@ -273,14 +277,14 @@ class Core:
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
-        num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
-        usable_procs = ""
-        for i in range(num_proc):
-            if ((i+1)/num_proc) > 0.25:
-                usable_procs = usable_procs + "," + str(i)
-        usable_procs = usable_procs[1:]        
+        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
+        #usable_procs = ""
+        #for i in range(num_proc):
+        #    if ((i+1)/num_proc) > 0.25:
+        #        usable_procs = usable_procs + "," + str(i)
+        #usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
         
     def load_config(self):
@@ -391,7 +395,7 @@ class Core:
 
     def start_audio(self):
         # start jack server
-        self.jack_server = subprocess.Popen(['/usr/bin/jackd', '-r', '-t10000', '-dalsa', '-d' + self.config['audio']['hardware'], '-r' + self.config['audio']['rate'], '-p' + self.config['audio']['buffer'], '-n' + self.config['audio']['period'], '-Xseq']) #, '-z' + self.config['audio']['dither']])
+        self.jack_server = subprocess.Popen(['/usr/bin/jackd', '-R', '-t10000', '-dalsa', '-d' + self.config['audio']['hardware'], '-r' + self.config['audio']['rate'], '-p' + self.config['audio']['buffer'], '-n' + self.config['audio']['period'], '-Xseq']) #, '-z' + self.config['audio']['dither']])
         self.set_realtime(self.jack_server.pid, 4)
         
         # start jack client
@@ -403,6 +407,11 @@ class Core:
         config(backend='jack', client_name='OpenDSP', in_ports=2)
         self.thread_midi_processor = threading.Thread(target=self.midi_processor, args=(), daemon=True)
         self.thread_midi_processor.start()
+        
+        # calls input2midi
+        #self.input2midi = subprocess.Popen('/usr/bin/input2midi')
+        self.input2midi = subprocess.Popen('/home/opendsp/input2midi/input2midi')
+        self.set_realtime(self.input2midi.pid) 
 
     def start_app(self):
         self.app_name = self.config['user']['app']
@@ -416,7 +425,7 @@ class Core:
         # add one more rule for our internal opendsp management
         # ChannelFilter(16) >> Port(16)
         rules = "ChannelSplit({{ {app_rules}, 15: Port(15), 16: Port(16) }})".format(app_rules=self.app_midi_processor)
-        self.mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midi', '-o', '16', rules])
+        self.mididings = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midiRT', '-o', '16', rules])
         self.set_realtime(self.mididings.pid, 4)
 
         self.app.start()

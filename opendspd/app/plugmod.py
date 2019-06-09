@@ -108,7 +108,7 @@ class plugmod(App):
                 
         # start main mixer?
         if self.mixer:
-            self.load_mixer(self.mixer)          
+            self.load_mixer(self.mixer)                 
         
         self.load_project(self.params["project"])
 
@@ -146,7 +146,7 @@ class plugmod(App):
         midi_processor = ""
         for x in range(1,4):
             # realtime midi processing routing rules - based on mididings environment
-            midi_processor += "{channel}: Filter(NOTE, PROGRAM, CTRL) >> Channel(1) >> Port({channel}), ".format(channel=x)
+            midi_processor += "{channel}: Filter(NOTE, PROGRAM, CTRL) >> Channel({channel}) >> Port({channel}), ".format(channel=x)
         if self.mixer != None:
             midi_processor += "{channel}: Filter(CTRL) >> Channel(1) >> Port({channel}), ".format(channel=14)
         return midi_processor[:-2]
@@ -195,9 +195,9 @@ class plugmod(App):
             try:
                 # get the channel based on any number present on port name
                 channel = int(re.search(r'\d+', midi_port).group())  
-                self.opendsp.jack.connect("midi:out_{channel}".format(channel=channel), midi_port)
+                self.opendsp.jack.connect("midiRT:out_{channel}".format(channel=channel), midi_port)
                 # connect midi:out_ output to ingen control also... for midi cc map
-                self.opendsp.jack.connect("midi:out_{channel}".format(channel=channel), 'ingen:control')
+                self.opendsp.jack.connect("midiRT:out_{channel}".format(channel=channel), 'ingen:control')
             except:
                 time.sleep(1)
             self.midi_port_in.append(midi_port)

@@ -56,7 +56,7 @@ class djing(App):
                 pass
         if self.opendsp_midi_connected == False:
             try:
-                self.opendsp.jack.connect('midi:out_1', 'alsa_midi:Midi Through Port-0 (in)')
+                self.opendsp.jack.connect('midiRT:out_1', 'alsa_midi:Midi Through Port-0 (in)')
                 self.opendsp_midi_connected = True
             except:
                 pass
