@@ -36,10 +36,6 @@ import jack
 # Data bank paths
 USER_DATA = "/home/opendsp/data"
 
-# Realtime Priority
-#REALTIME_PRIO = 45
-REALTIME_PRIO = 95
-
 class Core:
     """OpenDSP main core
 
@@ -61,12 +57,11 @@ class Core:
     display_on = False
     virtual_display_on = False
 
-    thread_check_midi = None
-    thread_midi_processor = None
-    thread_visualizer = None
+    threads = {}
     
-    # all proc reference managed by opendsp
+    # all proc and app reference managed by opendsp
     proc_map = {}
+    app_map = {}
     # configparser objects
     config = None
     app_list = None
@@ -89,6 +84,8 @@ class Core:
 
     def __del__(self):        
         # iterate over all app stack and kill each one of those
+        for app in self.app_map:
+            app['proc'].kill()
         for proc in self.proc_map:
             proc.kill()
         # check for display on
@@ -118,14 +115,13 @@ class Core:
         #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
     
     def run(self):
-        # lets make our daemon realtime priorized, 4 pts above other realtime process
-        #self.set_realtime(os.getpid(), -4)
-
+        # run all the defined apps on self.config
         apps = [ app for app in self.config if 'app' in app ]
         for app in apps:
             name = self.config[app]['name']
+            project = self.config[app]['project'] if 'project' in self.config[app] else None
             if name in self.app_list:
-                self.start_app(app, name, self.app_list[name], self.config[app]['project'], self.config[app]['display'])
+                self.start_app(app, name, self.app_list[name], project, self.config[app]['display'])
             else:
                 print("app {app_name} not defined!".format(app_name=name))                 
         
@@ -136,6 +132,7 @@ class Core:
         
         check_updates_counter = 0
         while self.running:
+            self.check_new_midi_input()
             # health check for audio, midi and video subsystem
             #...    
             # health check for all running apps    
@@ -150,27 +147,32 @@ class Core:
 
     def check_new_midi_input(self):
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
-        jack_midi_lsp = map(lambda data: data.name, self.jack.get_ports(is_midi=True, is_output=True))
-        #[ data.name for data in self.jack.get_ports(is_midi=True, is_output=True) ]
+        # getting jack ports and remove al the local ones
+        jack_midi_lsp = [ data.name for data in self.jack.get_ports(is_midi=True, is_output=True) if all(port not in data.name for port in self.local_midi_out_ports) ]
+        print(jack_midi_lsp)
         for midi_port in jack_midi_lsp:
-            if midi_port in self.midi_port_in or 'OpenDSP' in midi_port or 'midiRT' in midi_port or 'ingen' in midi_port or 'ttymidi' in midi_port or 'alsa_midi:ecasound' in midi_port or 'alsa_midi:Midi Through' in midi_port:
+            if midi_port in self.midi_port_in:           
                 continue
-            self.jack.connect(midi_port, 'midiRT:in_1')
-            self.midi_port_in.append(midi_port)
-        
+            try:    
+                print("auto connect: " + midi_port + " -> midiRT:in_1")
+                self.jack.connect(midi_port, 'midiRT:in_1')
+                self.midi_port_in.append(midi_port)
+            except:
+                pass
         # new devices on raw midi layer?
         #for midi_device in glob.glob("/dev/midi*"):
         #    if midi_device in self.midi_devices:
         #        continue
-        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'midi:in_1'], shell=False) #, '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=True)
+        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'midi:in_1'], shell=False) #, '-y', str(self.config['system']['realtime']+4), '-Y', str(self.config['system']['realtime']+4)], shell=True)
         #    self.set_realtime(midi_device_proc.pid, 4)  
         #    self.midi_devices.append(midi_device)
         #    self.midi_devices_procs.append(midi_device_proc)
-        time.sleep(5)
+        #time.sleep(5)
     
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
+        # self.config['system']['usage'])
         #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
         #usable_procs = ""
         #for i in range(num_proc):
@@ -179,7 +181,7 @@ class Core:
         #usable_procs = usable_procs[1:]        
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
-        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(REALTIME_PRIO+inc), str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(int(self.config['system']['realtime'])+inc), str(pid)], shell=False)
         
     def load_config(self):
 
@@ -197,6 +199,9 @@ class Core:
             self.config['audio']['period'] = '8'
             self.config['audio']['buffer'] = '256'
             self.config['audio']['hardware'] = 'hw:0,0'
+        if 'system' not in self.config:
+            self.config['system']['usage'] = 75
+            self.config['system']['realtime'] = 95
                                 
     def start_audio(self):
         # start jack server
@@ -249,8 +254,8 @@ class Core:
     def start_midi(self):
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=2)
-        self.thread_midi_processor = threading.Thread(target=self.midi_processor, args=(), daemon=True)
-        self.thread_midi_processor.start()
+        self.threads['midi_processor'] = threading.Thread(target=self.midi_processor, args=(), daemon=True)
+        self.threads['midi_processor'].start()
 
         # call mididings and set it realtime alog with jack - named midi
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
@@ -289,33 +294,55 @@ class Core:
             #self.set_realtime(self.midi_onboard_proc.pid, 4)        
         
         # start checkNewMidi Thread
-        self.thread_check_midi = threading.Thread(target=self.check_new_midi_input, args=(), daemon=True)
-        self.thread_check_midi.start() 
+        self.local_midi_out_ports = [ self.app_list[app_name]['midi_output'] for app_name in self.app_list if 'midi_output' in self.app_list[app_name] ]
+        local_midi_ports = [ 'OpenDSP', 'midiRT', 'ttymidi', 'alsa_midi:Midi Through' ]
+        self.local_midi_out_ports.extend(local_midi_ports)
+        #self.threads['check_midi'] = threading.Thread(target=self.check_new_midi_input, args=(), daemon=True)
+        #self.threads['check_midi'].start() 
 
     def start_app(self, app_id, name, app_obj, project, display):
+        app = {}
         # from where to load projects
         #app_obj['path']
         #app_path = "{0} {1}{2}".format(app_obj.bin, app_obj.path, project
-        app_path = app_obj['bin']
+        argments = None
+        if project is not None:
+            argments = "{0}{1}".format(app_obj['path'], project.replace("\"", ""))
+
         # the binary app
         if 'native' in display:
-            self.display(app_path)
+            app['proc'] = self.display(app_obj['bin'], argments)
         elif 'virtual' in display:
-            self.virtual_display(app_path)
+            app['proc'] = self.virtual_display(app_obj['bin'], argments)
         else:
-            self.proc_map[name] = subprocess.Popen(app_path)
+            app['proc'] = subprocess.Popen([app_obj['bin'], argments])
 
         # generate a list from, parsed by ','
-        #app_obj.input
-        #app_obj.output
+        #app_obj.audio_input
+        if 'audio_input' in app_obj:
+            app['audio_input'] = [ audio_input for audio_input in app_obj['audio_input'].split(",") ]
+        #app_obj.audio_output
+        if 'audio_output' in app_obj:
+            app['audio_output'] = [ audio_output for audio_output in app_obj['audio_output'].split(",") ]
         #app_obj.midi_input
+        if 'midi_input' in app_obj:
+            app['midi_input'] = [ midi_input for midi_input in app_obj['midi_input'].split(",") ]
         #app_obj.midi_output
-        # create a list for all projects inside path
+        if 'midi_output' in app_obj:
+            app['midi_output'] = [ midi_output for midi_output in app_obj['midi_output'].split(",") ]
+
+        if 'realtime' in app_obj:
+            app['realtime'] = app_obj['realtime']
+            self.set_realtime(app['proc'].pid, int(app['realtime']))  
+
+        # add to our object global app reference
+        self.app_map[app_id] = app
 
     def stop_app(self, app_id):
-        pass
+        self.app_map[app_id]['proc'].kill()
 
-    def display(self, cmd):
+    def display(self, cmd, args):
+        call = [ cmd ]
         # check for display on
         if self.display_on == False:
             # start display service
@@ -334,9 +361,13 @@ class Core:
         environment = os.environ.copy()
         environment["DISPLAY"] = ":0"
         environment["SDL_AUDIODRIVER"] = "jack"
-        return subprocess.Popen(cmd.split(" "), env=environment)
+        environment["SDL_VIDEODRIVER"] = "x11"
+        if args is not None:
+            call.append(args) 
+        return subprocess.Popen(call, env=environment, shell=False)
 
-    def virtual_display(self, cmd):
+    def virtual_display(self, cmd, args):
+        call = [ cmd ]
         # check for display on
         if self.virtual_display_on == False:
             # start display service
@@ -350,8 +381,11 @@ class Core:
         environment = os.environ.copy()
         environment["DISPLAY"] = ":1"
         environment["SDL_AUDIODRIVER"] = "jack"
+        environment["SDL_VIDEODRIVER"] = "x11"
         # start virtual display app
-        return subprocess.Popen(cmd.split(" "), env=environment)
+        if args is not None:
+            call.append(args) 
+        return subprocess.Popen(call, env=environment, shell=False)
 
     def mount_fs(self, action):
         if 'write'in action: 
