@@ -108,19 +108,20 @@ class Core(metaclass=Singleton):
         self.start_audio()
         # start MIDI engine
         self.start_midi()
-        # force rtirq to restart
-        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
 
     def run(self):
-        # load mod
-        self.load_mod(self.config['system']['mod']['name'])
-        
+        # machine actions before running
+        #.. call a user generated script inside user's home folder
+        # force rtirq to restart
+        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
         # set main PCM to max gain volume
         subprocess.check_call(['/bin/amixer', 'sset', 'PCM,0', '100%'])
 
-        self.running = True
-        
+        # load mod
+        self.load_mod(self.config['system']['mod']['name'])
+
         check_updates_counter = 0
+        self.running = True
         while self.running:
             self.process_midi()
             # health check for audio, midi and video subsystem
@@ -148,12 +149,11 @@ class Core(metaclass=Singleton):
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         # getting jack ports and remove all the local ones
         jack_midi_lsp = [ data.name for data in self.jack.get_ports(is_midi=True, is_output=True) if all(port not in data.name for port in self.local_midi_out_ports) ]
-        print(jack_midi_lsp)
         for midi_port in jack_midi_lsp:
             if midi_port in self.midi_port_in:           
                 continue
             try:    
-                print("auto connect: " + midi_port + " -> midiRT:in_1")
+                print("opendsp hid device auto connect: " + midi_port + " -> midiRT:in_1")
                 self.jack.connect(midi_port, 'midiRT:in_1')
                 self.midi_port_in.append(midi_port)
             except:
@@ -169,7 +169,6 @@ class Core(metaclass=Singleton):
         #time.sleep(5)
 
     def load_config(self):
-
         # read apps definitions
         self.config['app'].read(USER_DATA + '/mod/app.cfg')
 
