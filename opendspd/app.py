@@ -2,7 +2,6 @@ from opendspd import opendspd
 
 class App:
 
-    # Core singleton instance
     opendsp = None
     config = None
     app = None
@@ -18,6 +17,7 @@ class App:
         self.data['proc'].kill()
 
     def start(self):
+        cmd = self.app['bin'].replace("\"", "")
         argments = None
 
         if 'project' in self.config:
@@ -26,11 +26,11 @@ class App:
         if 'display' in self.config:        
             # start the app with or without display
             if 'native' in self.config['display']:
-                self.data['proc'] = self.opendsp.display(self.app['bin'], argments)
+                self.data['proc'] = self.opendsp.display(cmd, argments)
             elif 'virtual' in self.config['display']:
-                self.data['proc'] = self.opendsp.display_virtual(self.app['bin'], argments)
+                self.data['proc'] = self.opendsp.display_virtual(cmd, argments)
         else:
-            self.data['proc'] = self.opendsp.background(self.app['bin'], argments)
+            self.data['proc'] = self.opendsp.background(cmd, argments)
 
         # generate a list from, parsed by ','
         if 'audio_input' in self.app:

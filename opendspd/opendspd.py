@@ -306,7 +306,7 @@ class Core(metaclass=Singleton):
         #self.thread['check_midi'].start() 
 
     def display(self, cmd, args):
-        call = [ cmd ]
+        call = cmd.split(" ")
         # check for display on
         if self.display_native_on == False:
             # start display service
@@ -331,7 +331,7 @@ class Core(metaclass=Singleton):
         return subprocess.Popen(call, env=environment, shell=False)
 
     def display_virtual(self, cmd, args):
-        call = [ cmd ]
+        call = cmd.split(" ")
         # check for display on
         if self.display_virtual_on == False:
             # start display service
