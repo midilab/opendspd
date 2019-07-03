@@ -1,17 +1,36 @@
+# -*- coding: utf-8 -*-
+
+# OpenDSP Core Daemon
+# Copyright (C) 2015-2019 Romulo Silva <contact@midilab.co>
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License as
+# published by the Free Software Foundation; either version 2 of
+# the License, or any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# For a full copy of the GNU General Public License see the doc/GPL.txt file.
+# Common system tools
+#...
+
+# for reference of opendsp.Core() singleton object
 from opendspd import opendspd
 
 class App:
 
-    opendsp = None
-    config = None
-    app = None
-    data = {}
-
     def __init__(self, config, app):
+        # OpenDSP Core singleton instance
+        self.opendsp = self.opendsp = opendspd.Core()
+        # config are all the user setup inside [appX] 
         self.config = config
+        # app are the main data structure config of the running app
         self.app = app
-        # opendsp Core is a singleton
-        self.opendsp = opendspd.Core()
+        # running state memory
+        self.data = {}
 
     def __del__(self):
         self.data['proc'].kill()

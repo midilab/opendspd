@@ -56,42 +56,37 @@ class Core(metaclass=Singleton):
         >>> opendsp.init()
         >>> opendsp.run()
     """
-
-    # Mod instance reference
-    mod = None
-    # all procs, threads and apps references managed by opendsp
-    proc = {}
-    thread = {}
-    # configparser objects
-    config = {}
-    # running state
-    running = False
-    # to control new midi devices  
-    midi_port_in = []    
-    # display management support
-    display_native_on = False
-    display_virtual_on = False
-    # Default data path
-    data_path = USER_DATA
     
-    def __init__(self):        
-        # setup our 2 main config files, the system user and app config
+    def __init__(self):   
+        # running Mod instance reference
+        self.mod = None
+        # all procs and threads references dict managed by opendsp
+        self.proc = {}
+        self.thread = {}
+        # configparser objects dict
+        self.config = {}
+        # running state
+        self.running = False
+        # manage the internal state of user midi input auto connections 
+        self.midi_port_in = []    
+        # display management running state
+        self.display_native_on = False
+        self.display_virtual_on = False
+        # default data path
+        self.data_path = USER_DATA
+        # setup our 3 main config files, the system user, mod and app list config
         self.config['system'] = configparser.ConfigParser()
-        self.config['app'] = configparser.ConfigParser()
         self.config['mod'] = configparser.ConfigParser()
+        self.config['app'] = configparser.ConfigParser()
         # setup signal handling 
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
-
-    # catch SIGINT and SIGTERM and stop application
-    def signal_handler(self, sig, frame):
-        self.running = False
 
     def __del__(self):    
         # stop mod instance    
         del self.mod
         # all our threads are daemon mode
-        #...
+        #... not need to stop then
         # stop all process
         for proc in self.proc:
             proc.kill()
@@ -172,21 +167,7 @@ class Core(metaclass=Singleton):
         #    self.midi_devices.append(midi_device)
         #    self.midi_devices_procs.append(midi_device_proc)
         #time.sleep(5)
-    
-    def set_realtime(self, pid, inc=0):
-        # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
-        # nproc --all
-        # self.config['system']['usage'])
-        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
-        #usable_procs = ""
-        #for i in range(num_proc):
-        #    if ((i+1)/num_proc) > 0.25:
-        #        usable_procs = usable_procs + "," + str(i)
-        #usable_procs = usable_procs[1:]        
-        # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
-        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(int(self.config['system']['system']['realtime'])+inc), str(pid)], shell=False)
-        
+
     def load_config(self):
 
         # read apps definitions
@@ -353,6 +334,24 @@ class Core(metaclass=Singleton):
 
     def background(self, app, args):
         return subprocess.Popen([app, args])
+
+    def set_realtime(self, pid, inc=0):
+        # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
+        # nproc --all
+        # self.config['system']['usage'])
+        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
+        #usable_procs = ""
+        #for i in range(num_proc):
+        #    if ((i+1)/num_proc) > 0.25:
+        #        usable_procs = usable_procs + "," + str(i)
+        #usable_procs = usable_procs[1:]        
+        # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(int(self.config['system']['system']['realtime'])+inc), str(pid)], shell=False)
+        
+    # catch SIGINT and SIGTERM and stop application
+    def signal_handler(self, sig, frame):
+        self.running = False
 
     def mount_fs(self, action):
         if 'write'in action: 
