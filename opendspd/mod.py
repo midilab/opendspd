@@ -75,7 +75,6 @@ class Mod:
 
     def connection_handler(self):
         # iterate over all connections 
-        print(self.connections)
         connections_made = []
         for port in self.connections:
             try:

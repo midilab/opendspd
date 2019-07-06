@@ -36,20 +36,26 @@ class App:
         self.data['proc'].kill()
 
     def start(self):
-        cmd = self.app['bin'].replace("\"", "")
-        argments = None
+        argments = ""
 
-        if 'project' in self.config:
-            argments = "{0}{1}".format(self.app['path'], self.config['project'].replace("\"", ""))
-                
+        if 'project_arg' in self.app and 'project' in self.config:
+            argments += "{0} {1}{2} ".format(self.app['project_arg'], self.app.get('path', ""), self.config['project'].replace(" ", "\\ "))
+        if 'args' in self.app:
+            argments += "{0} ".format(self.app['args'])
+        if 'args' in self.config:
+            argments += "{0} ".format(self.config['args'])
+
+        # construct call
+        call = "{0} {1}".format(self.app['bin'], argments).replace("\"", "")
+
         if 'display' in self.config:        
             # start the app with or without display
             if 'native' in self.config['display']:
-                self.data['proc'] = self.opendsp.display(cmd, argments)
+                self.data['proc'] = self.opendsp.display(call)
             elif 'virtual' in self.config['display']:
-                self.data['proc'] = self.opendsp.display_virtual(cmd, argments)
+                self.data['proc'] = self.opendsp.display_virtual(call)
         else:
-            self.data['proc'] = self.opendsp.background(cmd, argments)
+            self.data['proc'] = self.opendsp.background(call)
 
         # generate a list from, parsed by ','
         if 'audio_input' in self.app:

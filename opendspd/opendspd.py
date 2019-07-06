@@ -113,7 +113,7 @@ class Core(metaclass=Singleton):
         # machine actions before running
         #.. call a user generated script inside user's home folder
         # force rtirq to restart
-        #subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
+        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
         # set main PCM to max gain volume
         subprocess.check_call(['/bin/amixer', 'sset', 'PCM,0', '100%'])
 
@@ -285,8 +285,7 @@ class Core(metaclass=Singleton):
         #self.thread['check_midi'] = threading.Thread(target=self.check_new_midi_input, args=(), daemon=True)
         #self.thread['check_midi'].start() 
 
-    def display(self, cmd, args):
-        call = cmd.split(" ")
+    def display(self, call):
         # check for display on
         if self.display_native_on == False:
             # start display service
@@ -306,12 +305,9 @@ class Core(metaclass=Singleton):
         environment["DISPLAY"] = ":0"
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
-        if args is not None:
-            call.append(args) 
-        return subprocess.Popen(call, env=environment, shell=False)
+        return subprocess.Popen([call], env=environment, shell=True)
 
-    def display_virtual(self, cmd, args):
-        call = cmd.split(" ")
+    def display_virtual(self, call):
         # check for display on
         if self.display_virtual_on == False:
             # start display service
@@ -327,12 +323,10 @@ class Core(metaclass=Singleton):
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
         # start virtual display app
-        if args is not None:
-            call.append(args) 
-        return subprocess.Popen(call, env=environment, shell=False)
+        return subprocess.Popen([call], env=environment, shell=True)
 
-    def background(self, app, args):
-        return subprocess.Popen([app, args])
+    def background(self, call):
+        return subprocess.Popen([call], shell=True)
 
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
