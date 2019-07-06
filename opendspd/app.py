@@ -37,13 +37,12 @@ class App:
 
     def start(self):
         argments = ""
-
-        if 'project_arg' in self.app and 'project' in self.config:
-            argments += "{0} {1}{2} ".format(self.app['project_arg'], self.app.get('path', ""), self.config['project'].replace(" ", "\\ "))
         if 'args' in self.app:
             argments += "{0} ".format(self.app['args'])
         if 'args' in self.config:
             argments += "{0} ".format(self.config['args'])
+        if 'project' in self.config:
+            argments += "{0} {1}{2} ".format(self.app.get('project_arg', ""), self.app.get('path', ""), self.config['project'].replace(" ", "\\ "))
 
         # construct call
         call = "{0} {1}".format(self.app['bin'], argments).replace("\"", "")

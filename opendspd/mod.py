@@ -78,9 +78,13 @@ class Mod:
         connections_made = []
         for port in self.connections:
             try:
-                print("mod connect: {0} <-> {1}".format(port['origin'], port['dest']))
-                self.opendsp.jack.connect(port['origin'], port['dest'])
-                connections_made.append(port)
+                # allow user to regex port expression on jack clients that randon their port names
+                origin = [ data.name for data in self.jack.get_ports(port['origin']) ]
+                dest = [ data.name for data in self.jack.get_ports(port['dest']) ]
+                if len(origin) > 0 and len(dest) > 0:
+                    print("mod connect: {0} <-> {1}".format(origin[0], dest[0]))
+                    self.opendsp.jack.connect(origin[0], dest[0])
+                    connections_made.append(port)
             except:
                 print("mod connect error!")
                 continue
