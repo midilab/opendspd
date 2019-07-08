@@ -118,7 +118,8 @@ class Core(metaclass=Singleton):
         subprocess.check_call(['/bin/amixer', 'sset', 'PCM,0', '100%'])
 
         # load mod
-        self.load_mod(self.config['system']['mod']['name'])
+        if 'mod' in self.config['system']:
+            self.load_mod(self.config['system']['mod']['name'])
 
         check_updates_counter = 0
         self.running = True
@@ -179,15 +180,18 @@ class Core(metaclass=Singleton):
         # if system config file does not exist, load default values
         if 'audio' not in self.config['system']:
             # audio defaults
+            self.config['system']['audio'] = {}
             self.config['system']['audio']['rate'] = '48000'
             self.config['system']['audio']['period'] = '8'
             self.config['system']['audio']['buffer'] = '256'
             self.config['system']['audio']['hardware'] = 'hw:0,0'
         if 'system' not in self.config['system']:
+            self.config['system']['system'] = {}
             self.config['system']['system']['usage'] = 75
             self.config['system']['system']['realtime'] = 95
-        if 'mod' not in self.config['system']:
-            self.config['system']['mod']['name'] = "opendsp-factory"
+        #if 'mod' not in self.config['system']:
+        #    self.config['system']['mod'] = {}
+        #    self.config['system']['mod']['name'] = "opendsp-factory"
 
     def start_audio(self):
         # start jack server
@@ -292,10 +296,13 @@ class Core(metaclass=Singleton):
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
             while "xinit" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
-            # avoid screen auto shutoff
-            subprocess.check_call(['/usr/bin/xset', 's', 'off'])
-            subprocess.check_call(['/usr/bin/xset', '-dpms'])
-            subprocess.check_call(['/usr/bin/xset', 's', 'noblank'])
+            try:  
+                # avoid screen auto shutoff
+                subprocess.check_call(['/usr/bin/xset', 's', 'off'])
+                subprocess.check_call(['/usr/bin/xset', '-dpms'])
+                subprocess.check_call(['/usr/bin/xset', 's', 'noblank'])
+            except:
+                pass
             self.display_native_on = True
 
         # start app
