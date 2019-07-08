@@ -120,6 +120,9 @@ class Core(metaclass=Singleton):
         # load mod
         if 'mod' in self.config['system']:
             self.load_mod(self.config['system']['mod']['name'])
+        else:
+            # no mod setup so we turn display on for easier user interaction
+            self.display()
 
         check_updates_counter = 0
         self.running = True
@@ -289,7 +292,7 @@ class Core(metaclass=Singleton):
         #self.thread['check_midi'] = threading.Thread(target=self.check_new_midi_input, args=(), daemon=True)
         #self.thread['check_midi'].start() 
 
-    def display(self, call):
+    def display(self, call=None):
         # check for display on
         if self.display_native_on == False:
             # start display service
@@ -305,6 +308,8 @@ class Core(metaclass=Singleton):
                 pass
             self.display_native_on = True
 
+        if call is None:
+            return None
         # start app
         # SDL_VIDEODRIVER=
         # SDL_AUDIODRIVER=
@@ -314,7 +319,7 @@ class Core(metaclass=Singleton):
         environment["SDL_VIDEODRIVER"] = "x11"
         return subprocess.Popen([call], env=environment, shell=True)
 
-    def display_virtual(self, call):
+    def display_virtual(self, call=None):
         # check for display on
         if self.display_virtual_on == False:
             # start display service
@@ -324,6 +329,8 @@ class Core(metaclass=Singleton):
                 time.sleep(1)
             self.display_virtual_on = True
         
+        if call is None:
+            return None        
         # get opendsp user env and change the DISPLAY to our virtual one    
         environment = os.environ.copy()
         environment["DISPLAY"] = ":1"
