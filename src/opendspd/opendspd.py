@@ -60,10 +60,10 @@ class Core(metaclass=Singleton):
     def __init__(self):   
         # running Mod instance reference
         self.mod = None
-        # all procs and threads references dict managed by opendsp
+        # all procs and threads references managed by opendsp
         self.proc = {}
         self.thread = {}
-        # configparser objects dict
+        # configparser objects
         self.config = {}
         # running state
         self.running = False
