@@ -370,8 +370,8 @@ class Core(metaclass=Singleton):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
             self.mount_fs('write')
-            subprocess.check_call(['/sbin/sudo', '/home/opendsp/opendsp_1st_run.sh'])
-            subprocess.check_call(['/bin/rm', '/home/opendsp/opendsp_1st_run.sh'])
+            subprocess.check_call('/sbin/sudo /home/opendsp/opendsp_1st_run.sh', shell=True)
+            subprocess.check_call('/bin/rm /home/opendsp/opendsp_1st_run.sh', shell=True)
             self.mount_fs('read')
             #subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'reboot'])
             #sys.exit()
