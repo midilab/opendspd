@@ -77,17 +77,17 @@ class Mod:
         # iterate over all connections 
         connections_made = []
         for port in self.connections:
-            try:
                 # allow user to regex port expression on jack clients that randon their port names
-                origin = [ data.name for data in self.jack.get_ports(port['origin']) ]
-                dest = [ data.name for data in self.jack.get_ports(port['dest']) ]
-                if len(origin) > 0 and len(dest) > 0:
-                    print("mod connect: {0} <-> {1}".format(origin[0], dest[0]))
-                    self.opendsp.jack.connect(origin[0], dest[0])
-                    connections_made.append(port)
-            except:
-                print("mod connect error!")
-                continue
+                origin = [ data.name for data in self.opendsp.jack.get_ports(port['origin']) ]
+                dest = [ data.name for data in self.opendsp.jack.get_ports(port['dest']) ]
+                if len(origin) >= 1 and len(dest) >= 1:
+                    try:
+                        print("mod connect: {0} {1}".format(origin[0], dest[0]))
+                        self.opendsp.cmd("/usr/bin/jack_connect {0} {1}".format(origin[0], dest[0]))                        
+                        connections_made.append(port)
+                    except:
+                        print("mod connect error!")
+                        continue
         # clear the connections made from connections to make   
         self.connections = [ ports for ports in self.connections if ports not in connections_made ]
 
@@ -102,13 +102,14 @@ class Mod:
             for index, dest_port in enumerate(dest_port_list):
                 conn = { 'origin': '', 'dest': '' }
                 port_type_dest = ""
+                dest_port.replace(" ", "")
                 
                 dest_data = dest_port.split(":")
                 if len(dest_data) != 2:
                     continue
                 # accessors
                 name_app = config_app['name']
-                name_dest = dest_data[0] 
+                name_dest = dest_data[0].replace(" ", "")
                 index_dest = int(dest_data[1])-1
 
                 if 'audio_input' in port_type:
@@ -121,10 +122,10 @@ class Mod:
                     port_type_dest = 'midi_input'
                 else:
                     continue
-                
+
                 try:
-                    conn['dest'] = self.config_app[name_app][port_type].replace("\"", "").split(",")[index]
-                    conn['origin'] = self.config_app[name_dest][port_type_dest].replace("\"", "").split(",")[index_dest]
+                    conn['dest'] = self.config_app[name_app][port_type].replace("\"", "").split(",")[index].replace(" ", "")
+                    conn['origin'] = self.config_app[name_dest][port_type_dest].replace("\"", "").split(",")[index_dest].replace(" ", "")
                 except:
                     print("error, not enough data to generate port pairs")
                     continue

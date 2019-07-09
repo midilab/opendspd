@@ -296,17 +296,21 @@ class Core(metaclass=Singleton):
         #self.thread['check_midi'].start() 
 
     def display(self, call=None):
+        environment = os.environ.copy()
+        environment["DISPLAY"] = ":0"
+        environment["SDL_AUDIODRIVER"] = "jack"
+        environment["SDL_VIDEODRIVER"] = "x11"
         # check for display on
         if self.display_native_on is False:
             # start display service
-            subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
+            subprocess.check_call('/sbin/sudo /sbin/systemctl start display', env=environment, shell=True)
             while "Xorg" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
             try:  
                 # avoid screen auto shutoff
-                subprocess.check_call(['/usr/bin/xset', 's', 'off'])
-                subprocess.check_call(['/usr/bin/xset', '-dpms'])
-                subprocess.check_call(['/usr/bin/xset', 's', 'noblank'])
+                subprocess.check_call('/usr/bin/xset s off', env=environment, shell=True)
+                subprocess.check_call('/usr/bin/xset -dpms', env=environment, shell=True)
+                subprocess.check_call('/usr/bin/xset s noblank', env=environment, shell=True)
             except:
                 pass
             self.display_native_on = True
@@ -316,17 +320,17 @@ class Core(metaclass=Singleton):
         # start app
         # SDL_VIDEODRIVER=
         # SDL_AUDIODRIVER=
-        environment = os.environ.copy()
-        environment["DISPLAY"] = ":0"
-        environment["SDL_AUDIODRIVER"] = "jack"
-        environment["SDL_VIDEODRIVER"] = "x11"
         return subprocess.Popen([call], env=environment, shell=True)
 
     def display_virtual(self, call=None):
+        environment = os.environ.copy()
+        environment["DISPLAY"] = ":1"
+        environment["SDL_AUDIODRIVER"] = "jack"
+        environment["SDL_VIDEODRIVER"] = "x11"
         # check for display on
         if self.display_virtual_on is False:
-            # start display service
-            subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'])
+            # start virtual display service
+            subprocess.check_call('/sbin/sudo /sbin/systemctl start vdisplay', env=environment, shell=True)
             # check if display is running before setup as...
             while "Xvfb" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
@@ -334,16 +338,17 @@ class Core(metaclass=Singleton):
         
         if call is None:
             return None        
-        # get opendsp user env and change the DISPLAY to our virtual one    
-        environment = os.environ.copy()
-        environment["DISPLAY"] = ":1"
-        environment["SDL_AUDIODRIVER"] = "jack"
-        environment["SDL_VIDEODRIVER"] = "x11"
         # start virtual display app
         return subprocess.Popen([call], env=environment, shell=True)
 
     def background(self, call):
         return subprocess.Popen([call], shell=True)
+
+    def cmd(self, call, env=False):
+        environment = None
+        if env is True:
+            environment = os.environ.copy() 
+        subprocess.run(call, env=environment, shell=True)
 
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
@@ -372,6 +377,8 @@ class Core(metaclass=Singleton):
     def first_time(self):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
+            # take a breath...
+            time.sleep(10)
             self.mount_fs('write')
             subprocess.check_call('/sbin/sudo /home/opendsp/opendsp_1st_run.sh', shell=True)
             subprocess.check_call('/bin/rm /home/opendsp/opendsp_1st_run.sh', shell=True)
