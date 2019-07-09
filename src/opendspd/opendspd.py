@@ -69,6 +69,7 @@ class Core(metaclass=Singleton):
         self.running = False
         # manage the internal state of user midi input auto connections 
         self.midi_port_in = []    
+        self.app_midi_out_ports = []
         # display management running state
         self.display_native_on = False
         self.display_virtual_on = False
@@ -121,8 +122,9 @@ class Core(metaclass=Singleton):
         if 'mod' in self.config['system']:
             self.load_mod(self.config['system']['mod']['name'])
         else:
-            # no mod setup so we turn display on for easier user interaction
+            # no mod setup? we turn display and virtual display on for user interaction
             self.display()
+            self.display_virtual()
 
         check_updates_counter = 0
         self.running = True
@@ -131,7 +133,7 @@ class Core(metaclass=Singleton):
             # health check for audio, midi and video subsystem
             #...  
             # check for update packages 
-            if check_updates_counter == 10:
+            if check_updates_counter is 10:
                 self.check_updates()
                 check_updates_counter = 0
             check_updates_counter += 1
@@ -146,6 +148,7 @@ class Core(metaclass=Singleton):
             del self.mod
         # instantiate Mod object
         self.mod = mod.Mod(self.config['mod'], self.config['app'])
+        #self.app_midi_out_ports = self.mod.get_midi_out_ports()
         # get mod application ecosystem up and running
         self.mod.start()
         
@@ -230,7 +233,7 @@ class Core(metaclass=Singleton):
 
     def midi_processor_queue_app(self, event):
         #event.value
-        if event.ctrl == 119:
+        if event.ctrl is 119:
             #...
             return   
 
@@ -271,7 +274,7 @@ class Core(metaclass=Singleton):
             self.proc['on_board_midi'] = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.config['system']['midi']['device'], '-b', self.config['system']['midi']['baudrate']])
             self.set_realtime(self.proc['on_board_midi'].pid, 4)
             connected = False
-            while connected == False:
+            while connected is False:
                 try:
                     self.jack.connect('ttymidi:MIDI_in', 'midiRT:in_1')
                     connected = True
@@ -294,10 +297,10 @@ class Core(metaclass=Singleton):
 
     def display(self, call=None):
         # check for display on
-        if self.display_native_on == False:
+        if self.display_native_on is False:
             # start display service
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'display'])
-            while "xinit" not in (p.name() for p in psutil.process_iter()):
+            while "Xorg" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
             try:  
                 # avoid screen auto shutoff
@@ -321,7 +324,7 @@ class Core(metaclass=Singleton):
 
     def display_virtual(self, call=None):
         # check for display on
-        if self.display_virtual_on == False:
+        if self.display_virtual_on is False:
             # start display service
             subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'start', 'vdisplay'])
             # check if display is running before setup as...
@@ -362,9 +365,9 @@ class Core(metaclass=Singleton):
 
     def mount_fs(self, action):
         if 'write'in action: 
-            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,rw', '/'])
+            subprocess.check_call('/sbin/sudo /bin/mount -o remount,rw /', shell=True)
         elif 'read' in action:
-            subprocess.check_call(['/sbin/sudo', '/bin/mount' , '-o', 'remount,ro', '/'])
+            subprocess.check_call('/sbin/sudo /bin/mount -o remount,ro /', shell=True)
 
     def first_time(self):
         # check first run script created per platform
