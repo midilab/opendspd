@@ -114,9 +114,9 @@ class Core(metaclass=Singleton):
         # machine actions before running
         #.. call a user generated script inside user's home folder
         # force rtirq to restart
-        subprocess.call(['/sbin/sudo', '/usr/bin/rtirq', 'restart'], shell=True)
+        #subprocess.run('/sbin/sudo /usr/bin/rtirq restart', shell=True)
         # set main PCM to max gain volume
-        subprocess.check_call(['/bin/amixer', 'sset', 'PCM,0', '100%'])
+        subprocess.run('/bin/amixer sset PCM,0 100%', shell=True)
 
         # load mod
         if 'mod' in self.config['system']:
@@ -303,14 +303,14 @@ class Core(metaclass=Singleton):
         # check for display on
         if self.display_native_on is False:
             # start display service
-            subprocess.check_call('/sbin/sudo /sbin/systemctl start display', env=environment, shell=True)
+            subprocess.run('/sbin/sudo /sbin/systemctl start display', env=environment, shell=True)
             while "Xorg" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
             try:  
                 # avoid screen auto shutoff
-                subprocess.check_call('/usr/bin/xset s off', env=environment, shell=True)
-                subprocess.check_call('/usr/bin/xset -dpms', env=environment, shell=True)
-                subprocess.check_call('/usr/bin/xset s noblank', env=environment, shell=True)
+                subprocess.run('/usr/bin/xset s off', env=environment, shell=True)
+                subprocess.run('/usr/bin/xset -dpms', env=environment, shell=True)
+                subprocess.run('/usr/bin/xset s noblank', env=environment, shell=True)
             except:
                 pass
             self.display_native_on = True
@@ -330,7 +330,7 @@ class Core(metaclass=Singleton):
         # check for display on
         if self.display_virtual_on is False:
             # start virtual display service
-            subprocess.check_call('/sbin/sudo /sbin/systemctl start vdisplay', env=environment, shell=True)
+            subprocess.run('/sbin/sudo /sbin/systemctl start vdisplay', env=environment, shell=True)
             # check if display is running before setup as...
             while "Xvfb" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
@@ -370,21 +370,17 @@ class Core(metaclass=Singleton):
 
     def mount_fs(self, action):
         if 'write'in action: 
-            subprocess.check_call('/sbin/sudo /bin/mount -o remount,rw /', shell=True)
+            subprocess.run('/sbin/sudo /bin/mount -o remount,rw /', shell=True)
         elif 'read' in action:
-            subprocess.check_call('/sbin/sudo /bin/mount -o remount,ro /', shell=True)
+            subprocess.run('/sbin/sudo /bin/mount -o remount,ro /', shell=True)
 
     def first_time(self):
         # check first run script created per platform
         if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
-            # take a breath...
-            time.sleep(10)
             self.mount_fs('write')
-            subprocess.check_call('/sbin/sudo /home/opendsp/opendsp_1st_run.sh', shell=True)
-            subprocess.check_call('/bin/rm /home/opendsp/opendsp_1st_run.sh', shell=True)
+            subprocess.run('/sbin/sudo /home/opendsp/opendsp_1st_run.sh', shell=True)
+            subprocess.run('/bin/rm /home/opendsp/opendsp_1st_run.sh', shell=True)
             self.mount_fs('read')
-            #subprocess.check_call(['/sbin/sudo', '/sbin/systemctl', 'reboot'])
-            #sys.exit()
 
     def check_updates(self):
         update_pkgs = glob.glob(self.data_path + '/updates/*.pkg.tar.xz')
