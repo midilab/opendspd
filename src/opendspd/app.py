@@ -57,7 +57,7 @@ class App:
         if 'args' in self.config:
             argments += "{args_config} ".format(args_config=self.config['args'])
         if 'project' in self.config:
-            argments += "{arg_project} {path_project}{file_project} ".format(arg_project=self.app.get('project_arg', ""), path_project=self.app.get('path', ""), file_project=self.config['project'].replace(" ", "\\ "))
+            argments += "{arg_project} {path_data}/{path_project}/{file_project} ".format(arg_project=self.app.get('project_arg', ""), path_data=self.opendsp.path_data, path_project=self.config.get('path', ""), file_project=self.config['project'].replace(" ", "\\ "))
 
         # construct call
         call = "{cmd_call} {args}".format(cmd_call=self.app['bin'], args=argments).replace("\"", "")

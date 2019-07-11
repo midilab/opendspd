@@ -79,10 +79,10 @@ class Core(metaclass=Singleton):
         # all mods and projects avaliable to load
         self.avaliable_mods = []
         self.avaliable_projects = []
-        # setup our 3 main config files, the system user, mod and app list config
+        # setup our 2 main config files, the system user, mod and app list config
         self.config['system'] = configparser.ConfigParser()
-        self.config['mod'] = configparser.ConfigParser()
         self.config['app'] = configparser.ConfigParser()
+        self.config['mod'] = None
         # setup signal handling
         # by default, a SIGTERM is sent, followed by 90 seconds of waiting followed by a SIGKILL.
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -160,6 +160,8 @@ class Core(metaclass=Singleton):
         # load initial mod config
         try:
             # read our cfg file into memory
+            del self.config['mod']
+            self.config['mod'] = configparser.ConfigParser()
             self.config['mod'].read("{path_data}/mod/{name_mod}.cfg".format(path_data=self.path_data, name_mod=name))
             # stop and destroy mod instance in case
             if self.mod != None:
@@ -172,7 +174,6 @@ class Core(metaclass=Singleton):
             self.mod.start()
             # load all avaliable projets names into memory
             self.avaliable_projects = self.mod.get_projects()
-            print(self.avaliable_projects)
         except Exception as e:
             print("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
 
