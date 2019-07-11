@@ -55,6 +55,7 @@ class Core(metaclass=Singleton):
         >>> opendsp = opendspd.Core()
         >>> opendsp.init()
         >>> opendsp.run()
+        >>> opendsp.stop()
     """
     
     def __init__(self):   
@@ -74,35 +75,40 @@ class Core(metaclass=Singleton):
         self.display_native_on = False
         self.display_virtual_on = False
         # default data path
-        self.data_path = USER_DATA
+        self.path_data = USER_DATA
+        # all mods and projects avaliable to load
+        self.avaliable_mods = []
+        self.avaliable_projects = []
         # setup our 3 main config files, the system user, mod and app list config
         self.config['system'] = configparser.ConfigParser()
         self.config['mod'] = configparser.ConfigParser()
         self.config['app'] = configparser.ConfigParser()
-        # setup signal handling 
-        signal.signal(signal.SIGINT, self.signal_handler)
+        # setup signal handling
+        # by default, a SIGTERM is sent, followed by 90 seconds of waiting followed by a SIGKILL.
         signal.signal(signal.SIGTERM, self.signal_handler)
 
-    def __del__(self):    
-        # stop mod instance    
-        del self.mod
-        # all our threads are daemon mode
+    # catch SIGTERM and stop application
+    def signal_handler(self, sig, frame):
+        self.running = False
+
+    def stop(self):    
+        # stop mod instance   
+        self.mod.stop()
+        # all our threads are in daemon mode
         #... not need to stop then
         # stop all process
         for proc in self.proc:
-            proc.kill()
-        # check for display on
+            self.proc[proc].terminate()
+        # check for display
         if self.display_native_on:
             # stop display service
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'display'], shell=True)
+            subprocess.run('/sbin/sudo /sbin/systemctl stop display', shell=True)
         # check for virtual display
         if self.display_virtual_on:
             # stop virtual display service
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'stop', 'vdisplay'], shell=True) 
+            subprocess.run('/sbin/sudo /sbin/systemctl stop vdisplay', shell=True) 
 
     def init(self):
-        # check first run script created per platform
-        self.first_time()
         # load user config files
         self.load_config()
         # start Audio engine
@@ -118,6 +124,9 @@ class Core(metaclass=Singleton):
         # set main PCM to max gain volume
         subprocess.run('/bin/amixer sset PCM,0 100%', shell=True)
 
+        # read all avaliable mods names into memory, we sort glob here to make use of user numbered mods - usefull for MIDI requests
+        self.avaliable_mods = [ path_mod.split("/")[-1][:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if path_mod.split("/")[-1][:-4] != 'app' ]
+
         # load mod
         if 'mod' in self.config['system']:
             self.load_mod(self.config['system']['mod']['name'])
@@ -126,6 +135,10 @@ class Core(metaclass=Singleton):
             self.display()
             self.display_virtual()
 
+        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
+        # TODO: handle all midi connections inside midi_process in a more inteligent way
+        self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')   
+
         check_updates_counter = 0
         self.running = True
         while self.running:
@@ -133,34 +146,46 @@ class Core(metaclass=Singleton):
             # health check for audio, midi and video subsystem
             #...  
             # check for update packages 
-            if check_updates_counter is 10:
+            if check_updates_counter == 10:
                 self.check_updates()
                 check_updates_counter = 0
             check_updates_counter += 1
             # rest for a while....
             time.sleep(6)
+        
+        # no running any more? call stop to handle all running process
+        self.stop()
 
     def load_mod(self, name):
         # load initial mod config
-        self.config['mod'].read(USER_DATA + '/mod/' + name + '.cfg')
-        # unload mod in case
-        if self.mod is not None:
-            del self.mod
-        # instantiate Mod object
-        self.mod = mod.Mod(self.config['mod'], self.config['app'])
-        #self.app_midi_out_ports = self.mod.get_midi_out_ports()
-        # get mod application ecosystem up and running
-        self.mod.start()
-        
+        try:
+            # read our cfg file into memory
+            self.config['mod'].read("{path_data}/mod/{name_mod}.cfg".format(path_data=self.path_data, name_mod=name))
+            # stop and destroy mod instance in case
+            if self.mod != None:
+                self.mod.stop()
+                del self.mod
+            # instantiate Mod object
+            self.mod = mod.Mod(self.config['mod'], self.config['app'])
+            #self.app_midi_out_ports = self.mod.get_midi_out_ports()
+            # get mod application ecosystem up and running
+            self.mod.start()
+            # load all avaliable projets names into memory
+            self.avaliable_projects = self.mod.get_projects()
+            print(self.avaliable_projects)
+        except Exception as e:
+            print("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
+
     def process_midi(self):
         # to use integrated jackd a2jmidid please add -Xseq to jackd init param
         # getting jack ports and remove all the local ones
+        # take cares of user on the fly devices connections
         jack_midi_lsp = [ data.name for data in self.jack.get_ports(is_midi=True, is_output=True) if all(port not in data.name for port in self.local_midi_out_ports) ]
         for midi_port in jack_midi_lsp:
             if midi_port in self.midi_port_in:           
                 continue
             try:    
-                print("opendsp hid device auto connect: " + midi_port + " -> midiRT:in_1")
+                print("opendsp hid device auto connect: {name_port} -> midiRT:in_1".format(name_port=midi_port))
                 self.jack.connect(midi_port, 'midiRT:in_1')
                 self.midi_port_in.append(midi_port)
             except:
@@ -177,10 +202,10 @@ class Core(metaclass=Singleton):
 
     def load_config(self):
         # read apps definitions
-        self.config['app'].read(USER_DATA + '/mod/app.cfg')
+        self.config['app'].read("{path_data}/mod/app.cfg".format(path_data=self.path_data))
 
         # loading general system config
-        self.config['system'].read(USER_DATA + '/system.cfg')
+        self.config['system'].read("{path_data}/system.cfg".format(path_data=self.path_data))
 
         # audio setup
         # if system config file does not exist, load default values
@@ -193,8 +218,8 @@ class Core(metaclass=Singleton):
             self.config['system']['audio']['hardware'] = 'hw:0,0'
         if 'system' not in self.config['system']:
             self.config['system']['system'] = {}
-            self.config['system']['system']['usage'] = 75
-            self.config['system']['system']['realtime'] = 95
+            self.config['system']['system']['usage'] = '75'
+            self.config['system']['system']['realtime'] = '95'
         #if 'mod' not in self.config['system']:
         #    self.config['system']['mod'] = {}
         #    self.config['system']['mod']['name'] = "opendsp-factory"
@@ -209,46 +234,38 @@ class Core(metaclass=Singleton):
         self.jack.activate()
  
     def midi_processor_queue(self, event):
-        #event.value
-        if event.ctrl == 119:
-            #LOAD_APP
-            #self.load_app(self.get_app_name_by_id(event.value))
-            return
-        if event.ctrl == 118:
-            #...
-            return
-        if event.ctrl == 117:
-            #...
-            return
-        if event.ctrl == 116:
-            #...
-            return
-        if event.ctrl == 115:
-            #...
-            return
-        #if event.ctrl == 114:
-        #    # restart opendspd
-        #    subprocess.call(['/sbin/sudo', '/usr/bin/systemctl', 'restart', 'opendsp'])
-        #    return
-
-    def midi_processor_queue_app(self, event):
-        #event.value
-        if event.ctrl is 119:
-            #...
-            return   
+        # load mod
+        print(event)
+        # CTRL messages
+        if hasattr(event, 'program'):
+            # event.program
+            print("program change")
+            pass
+        # CTRL messages
+        if hasattr(event, 'ctrl'):
+            if event.ctrl == 119:
+                if len(self.avaliable_mods) > 0:
+                    index = event.value % len(self.avaliable_mods)
+                    self.load_mod(self.avaliable_mods[index])
+                    return
+            # load project, only for app1 if it is defined
+            if event.ctrl == 118:
+                if len(self.avaliable_projects) > 0:
+                    index = event.value % len(self.avaliable_projects)
+                    self.mod.load_project(self.avaliable_projects[index])
+                    return
+            #if event.ctrl == 114:
+            #    # restart opendspd
+            #    subprocess.call('/sbin/sudo /usr/bin/systemctl restart opendsp', shell=True)
+            #    return
 
     def midi_processor(self):
-        run(
-            [
-                # opendsp midi controlled via cc messages on channel 16 
-                PortFilter(1) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue),
-                PortFilter(2) >> Filter(CTRL) >> Call(thread=self.midi_processor_queue_app)            
-            ]
-        )
+        # opendsp midi controlled via program changes and cc messages on channel 16
+        run( [ PortFilter(1) >> Filter(PROGRAM|CTRL) >> Call(thread=self.midi_processor_queue) ] )
 
     def start_midi(self):
         # start mididings and a thread for midi input user control and feedback listening
-        config(backend='jack', client_name='OpenDSP', in_ports=2)
+        config(backend='jack', client_name='OpenDSP', in_ports=1)
         self.thread['midi_processor'] = threading.Thread(target=self.midi_processor, args=(), daemon=True)
         self.thread['midi_processor'].start()
 
@@ -260,27 +277,19 @@ class Core(metaclass=Singleton):
         self.proc['mididings'] = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midiRT', '-o', '16', rules])
         self.set_realtime(self.proc['mididings'].pid, 4)
 
-        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
-        #self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')
-        #self.jack.connect('midiRT:out_15', 'OpenDSP:in_2')         
-
-        # calls input2midi
-        #self.input2midi = subprocess.Popen('/usr/bin/input2midi')
-        #self.proc['input2midi'] = subprocess.Popen('/home/opendsp/input2midi/run')
-        #self.set_realtime(self.proc['input2midi'].pid)       
-
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.config['system']:
             self.proc['on_board_midi'] = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.config['system']['midi']['device'], '-b', self.config['system']['midi']['baudrate']])
             self.set_realtime(self.proc['on_board_midi'].pid, 4)
             connected = False
-            while connected is False:
+            while connected == False:
                 try:
                     self.jack.connect('ttymidi:MIDI_in', 'midiRT:in_1')
                     connected = True
+                    print('ttymidi connected!')
                 except:
                     # max times to try
-                    print('cant found ttymidi jack port... try again')
+                    print('waiting ttymidi to show up...')
                     time.sleep(1)
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.config['system']['midi']['device']), '38400'], shell=True)            
@@ -301,7 +310,7 @@ class Core(metaclass=Singleton):
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
         # check for display on
-        if self.display_native_on is False:
+        if self.display_native_on == False:
             # start display service
             subprocess.run('/sbin/sudo /sbin/systemctl start display', env=environment, shell=True)
             while "Xorg" not in (p.name() for p in psutil.process_iter()):
@@ -315,7 +324,7 @@ class Core(metaclass=Singleton):
                 pass
             self.display_native_on = True
 
-        if call is None:
+        if call == None:
             return None
         # start app
         # SDL_VIDEODRIVER=
@@ -328,7 +337,7 @@ class Core(metaclass=Singleton):
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
         # check for display on
-        if self.display_virtual_on is False:
+        if self.display_virtual_on == False:
             # start virtual display service
             subprocess.run('/sbin/sudo /sbin/systemctl start vdisplay', env=environment, shell=True)
             # check if display is running before setup as...
@@ -336,7 +345,7 @@ class Core(metaclass=Singleton):
                 time.sleep(1)
             self.display_virtual_on = True
         
-        if call is None:
+        if call == None:
             return None        
         # start virtual display app
         return subprocess.Popen([call], env=environment, shell=True)
@@ -346,7 +355,7 @@ class Core(metaclass=Singleton):
 
     def cmd(self, call, env=False):
         environment = None
-        if env is True:
+        if env == True:
             environment = os.environ.copy() 
         subprocess.run(call, env=environment, shell=True)
 
@@ -363,38 +372,26 @@ class Core(metaclass=Singleton):
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(int(self.config['system']['system']['realtime'])+inc), str(pid)], shell=False)
-        
-    # catch SIGINT and SIGTERM and stop application
-    def signal_handler(self, sig, frame):
-        self.running = False
 
-    def mount_fs(self, action):
+    def mount_fs(self, fs, action):
         if 'write'in action: 
-            subprocess.run('/sbin/sudo /bin/mount -o remount,rw /', shell=True)
+            subprocess.run("/sbin/sudo /bin/mount -o remount,rw {0}".format(fs), shell=True)
         elif 'read' in action:
-            subprocess.run('/sbin/sudo /bin/mount -o remount,ro /', shell=True)
-
-    def first_time(self):
-        # check first run script created per platform
-        if os.path.isfile('/home/opendsp/opendsp_1st_run.sh'):
-            self.mount_fs('write')
-            subprocess.run('/sbin/sudo /home/opendsp/opendsp_1st_run.sh', shell=True)
-            subprocess.run('/bin/rm /home/opendsp/opendsp_1st_run.sh', shell=True)
-            self.mount_fs('read')
+            subprocess.run("/sbin/sudo /bin/mount -o remount,ro {0}".format(fs), shell=True)
 
     def check_updates(self):
-        update_pkgs = glob.glob(self.data_path + '/updates/*.pkg.tar.xz')
+        update_pkgs = glob.glob(self.path_data + '/updates/*.pkg.tar.xz')
         # any update package?
-        for package_path in update_pkgs:
+        for path_package in update_pkgs:
             # install package
-            subprocess.call(['/sbin/sudo', '/sbin/pacman', '--noconfirm', '-U', package_path], shell=False)
+            subprocess.call(['/sbin/sudo', '/sbin/pacman', '--noconfirm', '-U', path_package], shell=False)
             # any systemd changes?
-            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'daemon-reload', package_path], shell=False)
+            subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'daemon-reload', path_package], shell=False)
             # remove the package from /updates dir and leave user a note about the update
-            subprocess.call(['/bin/rm', package_path], shell=False)
-            log_file = open(self.data_path + '/updates/log.txt','a')
-            log_file.write(str(datetime.datetime.now()) + ': package ' + package_path + ' updated successfully')
+            subprocess.call(['/bin/rm', path_package], shell=False)
+            log_file = open(self.path_data + '/updates/log.txt','a')
+            log_file.write(str(datetime.datetime.now()) + ': package ' + path_package + ' updated successfully')
             log_file.close()
-            if 'opendspd' in package_path:
+            if 'opendspd' in path_package:
                 # restart our self
                 subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'], shell=False)

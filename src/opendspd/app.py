@@ -14,15 +14,13 @@
 # GNU General Public License for more details.
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
-# Common system tools
-#...
 
 # for reference of opendsp.Core() singleton object
 from opendspd import opendspd
 
 class App:
 
-    def __init__(self, config, app):
+    def __init__(self, config, app, connections):
         # OpenDSP Core singleton instance
         self.opendsp = self.opendsp = opendspd.Core()
         # config are all the user setup inside [appX] 
@@ -31,21 +29,38 @@ class App:
         self.app = app
         # running state memory
         self.data = {}
+        # the state connections keeped by this app
+        self.connections = connections
+        self.connections_pending = connections
 
-    def __del__(self):
-        self.data['proc'].kill()
+    def stop(self):
+        # disconnect all jack ports
+        for ports in self.connections:
+            # allow user to regex port expression on jack clients that randon their port names
+            origin = [ data.name for data in self.opendsp.jack.get_ports(ports['origin']) ]
+            dest = [ data.name for data in self.opendsp.jack.get_ports(ports['dest']) ]
+            if len(origin) > 0 and len(dest) > 0:
+                self.opendsp.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))
+        # kill the app process and clear object state
+        self.data['proc'].terminate()
+        del self.data
+        self.data = {}
 
     def start(self):
+        # init connections pending
+        self.connections_pending = self.connections
+
+        # setup app arguments
         argments = ""
         if 'args' in self.app:
-            argments += "{0} ".format(self.app['args'])
+            argments += "{args_app} ".format(args_app=self.app['args'])
         if 'args' in self.config:
-            argments += "{0} ".format(self.config['args'])
+            argments += "{args_config} ".format(args_config=self.config['args'])
         if 'project' in self.config:
-            argments += "{0} {1}{2} ".format(self.app.get('project_arg', ""), self.app.get('path', ""), self.config['project'].replace(" ", "\\ "))
+            argments += "{arg_project} {path_project}{file_project} ".format(arg_project=self.app.get('project_arg', ""), path_project=self.app.get('path', ""), file_project=self.config['project'].replace(" ", "\\ "))
 
         # construct call
-        call = "{0} {1}".format(self.app['bin'], argments).replace("\"", "")
+        call = "{cmd_call} {args}".format(cmd_call=self.app['bin'], args=argments).replace("\"", "")
 
         if 'display' in self.config:        
             # start the app with or without display
@@ -69,3 +84,32 @@ class App:
         if 'realtime' in self.app:
             self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))  
 
+    def load_project(self, project):
+        try:
+            # stop the current app process
+            self.stop()
+            # assign to config object
+            self.config['project'] = project
+            # restart it again
+            self.start()
+        except Exception as e:
+            print("error trying to load project {name_project} on app {name_app}: {message_error}".format(name_project=project, name_app=self.app['name'], message_error=str(e)))
+
+    def check_health(self):
+        pass
+
+    def connection_handler(self):
+        # iterate over all connections that we need to watch
+        connections_made = []
+        for ports in self.connections_pending:
+            # allow user to regex port expression on jack clients that randon their port names
+            origin = [ data.name for data in self.opendsp.jack.get_ports(ports['origin']) ]
+            dest = [ data.name for data in self.opendsp.jack.get_ports(ports['dest']) ]
+            if len(origin) > 0 and len(dest) > 0:
+                self.opendsp.cmd("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))                        
+                connections_made.append(ports)
+                print("app connect found: {port_origin} {port_dest}".format(port_origin=origin[0], port_dest=dest[0]))
+            else:
+                print("app connect looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
+        # clear the connections made from connections to make   
+        self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]
