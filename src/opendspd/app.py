@@ -54,16 +54,15 @@ class App:
         self.connections_pending = self.connections
 
         # setup cmd call and arguments
-        call = []
-        call.append(self.app['bin'])
+        call = [self.app['bin']]
         if 'args' in self.app:
             call.append(self.app['args'])
         if 'args' in self.config:
             call.append(self.config['args'])
         if 'project' in self.config:
+            path_project = [ path for path in self.config.get('path', "").split("/") if path != '' ]  
             if 'project_arg' in self.app:
                 call.append("{arg_project}".format(arg_project=self.app['project_arg']))
-            path_project = [ path for path in self.config.get('path', "").split("/") if path != '' ]  
             call.append("{path_data}/{path_project}/{file_project}".format(path_data=self.opendsp.path_data, path_project="/".join(path_project), file_project=self.config['project']).strip())
 
         # where are we going to run this app?

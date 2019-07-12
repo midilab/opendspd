@@ -82,7 +82,7 @@ class Core(metaclass=Singleton):
         # setup our 2 main config files, the system user, mod and app list config
         self.config['system'] = configparser.ConfigParser()
         self.config['app'] = configparser.ConfigParser()
-        self.config['mod'] = None
+        self.config['mod'] = None 
         # setup signal handling
         # by default, a SIGTERM is sent, followed by 90 seconds of waiting followed by a SIGKILL.
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -92,21 +92,26 @@ class Core(metaclass=Singleton):
         self.running = False
 
     def stop(self):    
-        # stop mod instance   
-        self.mod.stop()
-        # all our threads are in daemon mode
-        #... not need to stop then
-        # stop all process
-        for proc in self.proc:
-            self.proc[proc].terminate()
-        # check for display
-        if self.display_native_on:
-            # stop display service
-            subprocess.run('/sbin/sudo /sbin/systemctl stop display', shell=True)
-        # check for virtual display
-        if self.display_virtual_on:
-            # stop virtual display service
-            subprocess.run('/sbin/sudo /sbin/systemctl stop vdisplay', shell=True) 
+        try:
+            # stop mod instance   
+            self.mod.stop()
+            # all our threads are in daemon mode
+            #... not need to stop then
+            # stop all process
+            for proc in self.proc:
+                self.proc[proc].terminate()
+            # check for display
+            if self.display_native_on:
+                # stop display service
+                subprocess.run('/sbin/sudo /sbin/systemctl stop display', shell=True)
+            # check for virtual display
+            if self.display_virtual_on:
+                # stop virtual display service
+                subprocess.run('/sbin/sudo /sbin/systemctl stop vdisplay', shell=True) 
+            # delete our data tmp file
+            os.remove('/var/tmp/opendsp-run-data')  
+        except Exception as e:
+            print("error while trying to stop opendsp: {message}".format(e))
 
     def init(self):
         # load user config files
@@ -134,10 +139,12 @@ class Core(metaclass=Singleton):
             # no mod setup? we turn display and virtual display on for user interaction
             self.display()
             self.display_virtual()
+            # update our running data file
+            self.update_run_data()
 
         # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
         # TODO: handle all midi connections inside midi_process in a more inteligent way
-        self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')   
+        self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')
 
         check_updates_counter = 0
         self.running = True
@@ -174,6 +181,8 @@ class Core(metaclass=Singleton):
             self.mod.start()
             # load all avaliable projets names into memory
             self.avaliable_projects = self.mod.get_projects()
+            # update our running data file
+            self.update_run_data()
         except Exception as e:
             print("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
 
@@ -202,28 +211,31 @@ class Core(metaclass=Singleton):
         #time.sleep(5)
 
     def load_config(self):
-        # read apps definitions
-        self.config['app'].read("{path_data}/mod/app.cfg".format(path_data=self.path_data))
+        try:
+            # read apps definitions
+            self.config['app'].read("{path_data}/mod/app/ecosystem.cfg".format(path_data=self.path_data))
 
-        # loading general system config
-        self.config['system'].read("{path_data}/system.cfg".format(path_data=self.path_data))
+            # loading general system config
+            self.config['system'].read("{path_data}/system.cfg".format(path_data=self.path_data))
 
-        # audio setup
-        # if system config file does not exist, load default values
-        if 'audio' not in self.config['system']:
-            # audio defaults
-            self.config['system']['audio'] = {}
-            self.config['system']['audio']['rate'] = '48000'
-            self.config['system']['audio']['period'] = '8'
-            self.config['system']['audio']['buffer'] = '256'
-            self.config['system']['audio']['hardware'] = 'hw:0,0'
-        if 'system' not in self.config['system']:
-            self.config['system']['system'] = {}
-            self.config['system']['system']['usage'] = '75'
-            self.config['system']['system']['realtime'] = '95'
-        #if 'mod' not in self.config['system']:
-        #    self.config['system']['mod'] = {}
-        #    self.config['system']['mod']['name'] = "opendsp-factory"
+            # audio setup
+            # if system config file does not exist, load default values
+            if 'audio' not in self.config['system']:
+                # audio defaults
+                self.config['system']['audio'] = {}
+                self.config['system']['audio']['rate'] = '48000'
+                self.config['system']['audio']['period'] = '8'
+                self.config['system']['audio']['buffer'] = '256'
+                self.config['system']['audio']['hardware'] = 'hw:0,0'
+            if 'system' not in self.config['system']:
+                self.config['system']['system'] = {}
+                self.config['system']['system']['usage'] = '75'
+                self.config['system']['system']['realtime'] = '95'
+            #if 'mod' not in self.config['system']:
+            #    self.config['system']['mod'] = {}
+            #    self.config['system']['mod']['name'] = "opendsp-factory"
+        except Exception as e:
+            print("error trying to load opendsp config file: {message}".format(e))
 
     def start_audio(self):
         # start jack server
@@ -235,25 +247,19 @@ class Core(metaclass=Singleton):
         self.jack.activate()
  
     def midi_processor_queue(self, event):
-        # load mod
-        print(event)
-        # CTRL messages
+        # PROGRAM messages
         if hasattr(event, 'program'):
-            # event.program
-            print("program change")
-            pass
+            # load project, only for app1 if it is defined
+            if len(self.avaliable_projects) > 0:
+                index = event.program % len(self.avaliable_projects)
+                self.mod.load_project(self.avaliable_projects[index])
+            return
         # CTRL messages
         if hasattr(event, 'ctrl'):
-            if event.ctrl == 119:
+            if event.ctrl == 120:
                 if len(self.avaliable_mods) > 0:
                     index = event.value % len(self.avaliable_mods)
                     self.load_mod(self.avaliable_mods[index])
-                    return
-            # load project, only for app1 if it is defined
-            if event.ctrl == 118:
-                if len(self.avaliable_projects) > 0:
-                    index = event.value % len(self.avaliable_projects)
-                    self.mod.load_project(self.avaliable_projects[index])
                     return
             #if event.ctrl == 114:
             #    # restart opendspd
@@ -371,6 +377,32 @@ class Core(metaclass=Singleton):
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo', '/sbin/chrt', '-a', '-f', '-p', str(int(self.config['system']['system']['realtime'])+inc), str(pid)], shell=False)
+
+    def update_run_data(self):
+        """
+        /var/tmp/opendsp-run-data
+        opendsp_user_data_path
+        mod_name
+        mod_project_path
+        mod_project
+        mod_project_extension
+        """
+        #, path_data, name_mod, path_project, name_project):
+        data = []
+        data.append("{}\n".format(self.path_data))
+        if self.config['mod'] != None:
+            if 'app1' in self.config['mod']:
+                name_mod = self.config['mod']['app1'].get('name', '')
+                data.append("{}\n".format(name_mod))
+                data.append("{}\n".format(self.config['mod']['app1'].get('path', '')))
+                data.append("{}\n".format(self.config['mod']['app1'].get('project', '')))
+                if name_mod in self.config['app']:
+                    data.append("{}\n".format(self.config['app'][name_mod].get('extension', '')))
+        try:
+            with open("/var/tmp/opendsp-run-data", "w+") as run_data:
+                run_data.writelines(data)
+        except Exception as e:
+            print("error trying to update run data: {message}".format(e))
 
     def mount_fs(self, fs, action):
         if 'write'in action: 
