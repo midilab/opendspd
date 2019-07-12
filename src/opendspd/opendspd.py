@@ -125,7 +125,7 @@ class Core(metaclass=Singleton):
         subprocess.run('/bin/amixer sset PCM,0 100%', shell=True)
 
         # read all avaliable mods names into memory, we sort glob here to make use of user numbered mods - usefull for MIDI requests
-        self.avaliable_mods = [ path_mod.split("/")[-1][:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if path_mod.split("/")[-1][:-4] != 'app' ]
+        self.avaliable_mods = [ os.path.basename(path_mod)[:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if os.path.basename(path_mod)[:-4] != 'app' ]
 
         # load mod
         if 'mod' in self.config['system']:
@@ -330,7 +330,7 @@ class Core(metaclass=Singleton):
         # start app
         # SDL_VIDEODRIVER=
         # SDL_AUDIODRIVER=
-        return subprocess.Popen([call], env=environment, shell=True)
+        return subprocess.Popen(call, env=environment)
 
     def display_virtual(self, call=None):
         environment = os.environ.copy()
@@ -349,15 +349,13 @@ class Core(metaclass=Singleton):
         if call == None:
             return None        
         # start virtual display app
-        return subprocess.Popen([call], env=environment, shell=True)
+        return subprocess.Popen(call, env=environment)
 
     def background(self, call):
-        return subprocess.Popen([call], shell=True)
+        return subprocess.Popen(call)
 
     def cmd(self, call, env=False):
-        environment = None
-        if env == True:
-            environment = os.environ.copy() 
+        environment = os.environ.copy() if env == True else None
         subprocess.run(call, env=environment, shell=True)
 
     def set_realtime(self, pid, inc=0):

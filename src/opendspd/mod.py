@@ -15,6 +15,7 @@
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 # Common system tools
+import os
 import time
 import threading
 import glob
@@ -89,7 +90,7 @@ class Mod:
         # only read project directory if we have a main app setup
         if self.main_app in self.app:
             dir_list = glob.glob("{path_data}/{path_project}/*".format(path_data=self.opendsp.path_data, path_project=self.path_project))
-            return [ path_project.split("/")[-1] for path_project in sorted(dir_list) ]
+            return [ os.path.basename(path_project) for path_project in sorted(dir_list) ]
         else:
             return []
 

@@ -14,6 +14,9 @@
 # GNU General Public License for more details.
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
+# Common system tools
+import os
+import re
 
 # for reference of opendsp.Core() singleton object
 from opendspd import opendspd
@@ -50,18 +53,20 @@ class App:
         # init connections pending
         self.connections_pending = self.connections
 
-        # setup app arguments
-        argments = ""
+        # setup cmd call and arguments
+        call = []
+        call.append(self.app['bin'])
         if 'args' in self.app:
-            argments += "{args_app} ".format(args_app=self.app['args'])
+            call.append(self.app['args'])
         if 'args' in self.config:
-            argments += "{args_config} ".format(args_config=self.config['args'])
+            call.append(self.config['args'])
         if 'project' in self.config:
-            argments += "{arg_project} {path_data}/{path_project}/{file_project} ".format(arg_project=self.app.get('project_arg', ""), path_data=self.opendsp.path_data, path_project=self.config.get('path', ""), file_project=self.config['project'].replace(" ", "\\ "))
+            if 'project_arg' in self.app:
+                call.append("{arg_project}".format(arg_project=self.app['project_arg']))
+            path_project = [ path for path in self.config.get('path', "").split("/") if path != '' ]  
+            call.append("{path_data}/{path_project}/{file_project}".format(path_data=self.opendsp.path_data, path_project="/".join(path_project), file_project=self.config['project']).strip())
 
-        # construct call
-        call = "{cmd_call} {args}".format(cmd_call=self.app['bin'], args=argments).replace("\"", "")
-
+        # where are we going to run this app?
         if 'display' in self.config:        
             # start the app with or without display
             if 'native' in self.config['display']:
