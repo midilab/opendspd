@@ -143,14 +143,10 @@ class Core(metaclass=Singleton):
         self.avaliable_mods = self.get_mods()
 
         # load mod
-        if 'mod' in self.config['system']:
-            self.load_mod(self.config['system']['mod']['name'])
-        else:
-            # no mod setup? we turn display and virtual display on for user interaction
-            self.display()
-            self.display_virtual()
-            # update our running data file
-            self.update_run_data()
+        self.load_mod(self.config['system']['mod']['name'])
+        # turn display and virtual display on for user interaction
+        self.display()
+        self.display_virtual()
 
         check_updates_counter = 0
         self.running = True
@@ -266,9 +262,9 @@ class Core(metaclass=Singleton):
                 self.config['system']['system'] = {}
                 self.config['system']['system']['usage'] = '75'
                 self.config['system']['system']['realtime'] = '95'
-            #if 'mod' not in self.config['system']:
-            #    self.config['system']['mod'] = {}
-            #    self.config['system']['mod']['name'] = "opendsp-factory"
+            if 'mod' not in self.config['system']:
+                self.config['system']['mod'] = {}
+                self.config['system']['mod']['name'] = "blank"
         except Exception as e:
             print("error trying to load opendsp config file: {message}".format(message=e))
 
