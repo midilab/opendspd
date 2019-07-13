@@ -355,11 +355,11 @@ class Core(metaclass=Singleton):
         if call == None:
             return None        
         # start virtual display app
-        print(environment)
         return subprocess.Popen(call, env=environment)
 
     def background(self, call):
-        return subprocess.Popen(call)
+        environment = os.environ.copy() if env == True else None
+        return subprocess.Popen(call, env=environment)
 
     def cmd(self, call, env=False):
         environment = os.environ.copy() if env == True else None

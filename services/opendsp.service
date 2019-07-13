@@ -14,7 +14,7 @@ StandardError=syslog
 LimitRTPRIO=infinity
 #LimitMEMLOCK=infinity
 LimitRTTIME=infinity
-#TasksMax=infinity
+TasksMax=infinity
 Restart=on-failure
 RestartSec=5
 

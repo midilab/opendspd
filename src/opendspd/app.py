@@ -56,9 +56,9 @@ class App:
         # setup cmd call and arguments
         call = self.app['bin'].split(" ")
         if 'args' in self.app:
-            call.append(self.app['args'])
+            call.extend(self.app['args'].split(" "))
         if 'args' in self.config:
-            call.append(self.config['args'])
+            call.extend(self.config['args'].split(" "))
         if 'project' in self.config:
             path_project = [ path for path in self.config.get('path', "").split("/") if path != '' ]  
             if 'project_arg' in self.app:

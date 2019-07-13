@@ -49,7 +49,6 @@ class Mod:
     def start(self):
         # construct a list of apps config objects to be used as mod apps ecosystem
         apps = { app: self.config_mod[app] for app in self.config_mod if 'app' in app }
-        print(apps)
         # one app per config entry
         for app_id in apps:
             config = apps[app_id]
