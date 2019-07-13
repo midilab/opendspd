@@ -103,17 +103,6 @@ class App:
         pass
 
     def connection_handler(self):
-        # iterate over all connections that we need to watch
-        connections_made = []
-        for ports in self.connections_pending:
-            # allow user to regex port expression on jack clients that randon their port names
-            origin = [ data.name for data in self.opendsp.jack.get_ports(ports['origin']) ]
-            dest = [ data.name for data in self.opendsp.jack.get_ports(ports['dest']) ]
-            if len(origin) > 0 and len(dest) > 0:
-                self.opendsp.cmd("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))                        
-                connections_made.append(ports)
-                print("app connect found: {port_origin} {port_dest}".format(port_origin=origin[0], port_dest=dest[0]))
-            else:
-                print("app connect looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
-        # clear the connections made from connections to make   
-        self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]
+        # generic opendsp call to handle state connections
+        connections_made = self.opendsp.handle_connections(self.connections_pending)
+        self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]        

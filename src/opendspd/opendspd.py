@@ -79,6 +79,9 @@ class Core(metaclass=Singleton):
         # all mods and projects avaliable to load
         self.avaliable_mods = []
         self.avaliable_projects = []
+        # connections state to handle
+        self.connections = []
+        self.connections_pending = []
         # setup our 2 main config files, the system user, mod and app list config
         self.config['system'] = configparser.ConfigParser()
         self.config['app'] = configparser.ConfigParser()
@@ -97,6 +100,13 @@ class Core(metaclass=Singleton):
             self.mod.stop()
             # all our threads are in daemon mode
             #... not need to stop then
+            # disconnect all jack ports
+            for ports in self.connections:
+                # allow user to regex port expression on jack clients that randon their port names
+                origin = [ data.name for data in self.jack.get_ports(ports['origin']) ]
+                dest = [ data.name for data in self.jack.get_ports(ports['dest']) ]
+                if len(origin) > 0 and len(dest) > 0:
+                    self.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))
             # stop all process
             for proc in self.proc:
                 self.proc[proc].terminate()
@@ -111,7 +121,7 @@ class Core(metaclass=Singleton):
             # delete our data tmp file
             os.remove('/var/tmp/opendsp-run-data')  
         except Exception as e:
-            print("error while trying to stop opendsp: {message}".format(e))
+            print("error while trying to stop opendsp: {message}".format(message=e))
 
     def init(self):
         # load user config files
@@ -130,7 +140,7 @@ class Core(metaclass=Singleton):
         subprocess.run('/bin/amixer sset PCM,0 100%', shell=True)
 
         # read all avaliable mods names into memory, we sort glob here to make use of user numbered mods - usefull for MIDI requests
-        self.avaliable_mods = [ os.path.basename(path_mod)[:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if os.path.basename(path_mod)[:-4] != 'app' ]
+        self.avaliable_mods = self.get_mods()
 
         # load mod
         if 'mod' in self.config['system']:
@@ -142,14 +152,14 @@ class Core(metaclass=Singleton):
             # update our running data file
             self.update_run_data()
 
-        # connect realtime output 16 to our internal mididings object processor(for midi host controlling)
-        # TODO: handle all midi connections inside midi_process in a more inteligent way
-        self.jack.connect('midiRT:out_16', 'OpenDSP:in_1')
-
         check_updates_counter = 0
         self.running = True
         while self.running:
+            # user new input connections
             self.process_midi()
+            # handle connection state
+            connections_made = self.handle_connections(self.connections_pending)
+            self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]
             # health check for audio, midi and video subsystem
             #...  
             # check for update packages 
@@ -186,9 +196,10 @@ class Core(metaclass=Singleton):
         except Exception as e:
             print("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
 
+    def get_mods(self):
+        return [ os.path.basename(path_mod)[:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if os.path.basename(path_mod)[:-4] != 'app' ]
+
     def process_midi(self):
-        # to use integrated jackd a2jmidid please add -Xseq to jackd init param
-        # getting jack ports and remove all the local ones
         # take cares of user on the fly devices connections
         jack_midi_lsp = [ data.name for data in self.jack.get_ports(is_midi=True, is_output=True) if all(port not in data.name for port in self.local_midi_out_ports) ]
         for midi_port in jack_midi_lsp:
@@ -209,6 +220,30 @@ class Core(metaclass=Singleton):
         #    self.midi_devices.append(midi_device)
         #    self.midi_devices_procs.append(midi_device_proc)
         #time.sleep(5)
+
+    def handle_connections_add(self, origin, dest):
+        # create a new connection state to handle
+        connection = { 'origin': origin, 'dest': dest }
+        self.connections.append(connection)
+        self.connections_pending.append(connection)
+
+    def handle_connections(self, connections_pending):
+        connections_made = []
+        for ports in connections_pending:
+            # allow user to regex port expression on jack clients that randon their port names
+            origin = [ data.name for data in self.jack.get_ports(ports['origin']) ]
+            dest = [ data.name for data in self.jack.get_ports(ports['dest']) ]
+            if len(origin) > 0 and len(dest) > 0:
+                try:
+                    self.cmd("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))                        
+                    connections_made.append(ports)
+                    print("connect handler found: {port_origin} {port_dest}".format(port_origin=origin[0], port_dest=dest[0]))
+                except Exception as e:
+                    print("error on auto connection: {message}".format(message=e))
+            else:
+                print("connect handler looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
+        # return connections made successfully   
+        return connections_made
 
     def load_config(self):
         try:
@@ -235,7 +270,7 @@ class Core(metaclass=Singleton):
             #    self.config['system']['mod'] = {}
             #    self.config['system']['mod']['name'] = "opendsp-factory"
         except Exception as e:
-            print("error trying to load opendsp config file: {message}".format(e))
+            print("error trying to load opendsp config file: {message}".format(message=e))
 
     def start_audio(self):
         # start jack server
@@ -250,6 +285,7 @@ class Core(metaclass=Singleton):
         # PROGRAM messages
         if hasattr(event, 'program'):
             # load project, only for app1 if it is defined
+            self.avaliable_projects = self.mod.get_projects()
             if len(self.avaliable_projects) > 0:
                 index = event.program % len(self.avaliable_projects)
                 self.mod.load_project(self.avaliable_projects[index])
@@ -257,6 +293,7 @@ class Core(metaclass=Singleton):
         # CTRL messages
         if hasattr(event, 'ctrl'):
             if event.ctrl == 120:
+                self.avaliable_mods = self.get_mods()
                 if len(self.avaliable_mods) > 0:
                     index = event.value % len(self.avaliable_mods)
                     self.load_mod(self.avaliable_mods[index])
@@ -284,20 +321,16 @@ class Core(metaclass=Singleton):
         self.proc['mididings'] = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midiRT', '-o', '16', rules])
         self.set_realtime(self.proc['mididings'].pid, 4)
 
+        # channel 16 are mean to control opendsp interface
+        self.handle_connections_add('midiRT:out_16', 'OpenDSP:in_1')
+
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.config['system']:
             self.proc['on_board_midi'] = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.config['system']['midi']['device'], '-b', self.config['system']['midi']['baudrate']])
             self.set_realtime(self.proc['on_board_midi'].pid, 4)
-            connected = False
-            while connected == False:
-                try:
-                    self.jack.connect('ttymidi:MIDI_in', 'midiRT:in_1')
-                    connected = True
-                    print('ttymidi connected!')
-                except:
-                    # max times to try
-                    print('waiting ttymidi to show up...')
-                    time.sleep(1)
+            # add to state
+            self.handle_connections_add('ttymidi:MIDI_in', 'midiRT:in_1')
+
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.config['system']['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beside the baudrate?
@@ -403,7 +436,7 @@ class Core(metaclass=Singleton):
             with open("/var/tmp/opendsp-run-data", "w+") as run_data:
                 run_data.writelines(data)
         except Exception as e:
-            print("error trying to update run data: {message}".format(e))
+            print("error trying to update run data: {message}".format(message=e))
 
     def mount_fs(self, fs, action):
         if 'write'in action: 
