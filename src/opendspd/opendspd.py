@@ -101,13 +101,13 @@ class Core(metaclass=Singleton):
             for proc in self.proc:
                 self.proc[proc].terminate()
             # check for display
-            if self.display_native_on:
+            #if self.display_native_on:
                 # stop display service
-                subprocess.run('/sbin/sudo /sbin/systemctl stop display', shell=True)
+            #    subprocess.run('/sbin/sudo /sbin/systemctl stop display', shell=True)
             # check for virtual display
-            if self.display_virtual_on:
+            #if self.display_virtual_on:
                 # stop virtual display service
-                subprocess.run('/sbin/sudo /sbin/systemctl stop vdisplay', shell=True) 
+            #    subprocess.run('/sbin/sudo /sbin/systemctl stop vdisplay', shell=True) 
             # delete our data tmp file
             os.remove('/var/tmp/opendsp-run-data')  
         except Exception as e:
