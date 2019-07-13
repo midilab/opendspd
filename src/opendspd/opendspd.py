@@ -444,10 +444,14 @@ class Core(metaclass=Singleton):
         update_pkgs = glob.glob(self.path_data + '/updates/*.pkg.tar.xz')
         # any update package?
         for path_package in update_pkgs:
+            # mount filesystem in rw mode
+            self.mount_fs("/", "write")
             # install package
             subprocess.call(['/sbin/sudo', '/sbin/pacman', '--noconfirm', '-U', path_package], shell=False)
             # any systemd changes?
             subprocess.call(['/sbin/sudo', '/sbin/systemctl', 'daemon-reload', path_package], shell=False)
+            # mount filesystem in ro mode back again
+            self.mount_fs("/", "read")
             # remove the package from /updates dir and leave user a note about the update
             subprocess.call(['/bin/rm', path_package], shell=False)
             log_file = open(self.path_data + '/updates/log.txt','a')
