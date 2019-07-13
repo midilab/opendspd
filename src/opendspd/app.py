@@ -54,7 +54,7 @@ class App:
         self.connections_pending = self.connections
 
         # setup cmd call and arguments
-        call = [self.app['bin']]
+        call = self.app['bin'].split(" ")
         if 'args' in self.app:
             call.append(self.app['args'])
         if 'args' in self.config:

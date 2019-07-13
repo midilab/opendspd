@@ -355,6 +355,7 @@ class Core(metaclass=Singleton):
         if call == None:
             return None        
         # start virtual display app
+        print(environment)
         return subprocess.Popen(call, env=environment)
 
     def background(self, call):

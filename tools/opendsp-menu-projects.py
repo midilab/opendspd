@@ -25,11 +25,11 @@ if __name__ == '__main__':
         with open("/var/tmp/opendsp-run-data", "r") as mod_setup:
             data_mod = mod_setup.readlines()
     except: 
-        print("opendsp not running, please start it first...")
+        print("<openbox_pipe_menu><item label=\"opendsp not running, please start it first...\" /></openbox_pipe_menu>")
         exit()
 
     if len(data_mod) < 4:
-        print("no run data to read")
+        print("<openbox_pipe_menu><item label=\"no project path setup\" /></openbox_pipe_menu>")
         exit()
     
     #opendsp_user_data_path
