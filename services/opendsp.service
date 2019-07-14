@@ -7,12 +7,11 @@ User=opendsp
 Group=opendsp
 WorkingDirectory=/home/opendsp/
 ExecStart=/usr/bin/opendspd
-#Environment="DISPLAY=:0"
 Environment="XAUTHORITY=/tmp/.Xauthority"
 StandardOutput=syslog
 StandardError=syslog
 LimitRTPRIO=infinity
-#LimitMEMLOCK=infinity
+LimitMEMLOCK=infinity
 LimitRTTIME=infinity
 TasksMax=infinity
 Restart=on-failure

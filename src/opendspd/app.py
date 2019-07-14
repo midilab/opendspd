@@ -52,7 +52,7 @@ class App:
     def start(self):
         # init connections pending
         self.connections_pending = self.connections
-
+        
         # setup cmd call and arguments
         call = self.app['bin'].split(" ")
         if 'args' in self.app:
@@ -75,6 +75,13 @@ class App:
         else:
             self.data['proc'] = self.opendsp.background(call)
 
+        # set limits?
+        if 'limits' in self.app:
+            self.opendsp.set_limits(self.data['proc'].pid, self.app['limits'])
+        # set realtime priority?
+        if 'realtime' in self.app:
+            self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))  
+
         # generate a list from, parsed by ','
         if 'audio_input' in self.app:
             self.data['audio_input'] = [ audio_input for audio_input in self.app['audio_input'].split(",") ]
@@ -85,8 +92,6 @@ class App:
         if 'midi_output' in self.app:
             self.data['midi_output'] = [ midi_output for midi_output in self.app['midi_output'].split(",") ]
 
-        if 'realtime' in self.app:
-            self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))  
 
     def load_project(self, project):
         try:

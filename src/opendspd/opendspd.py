@@ -394,6 +394,9 @@ class Core(metaclass=Singleton):
         environment = os.environ.copy() if env == True else None
         subprocess.run(call, env=environment, shell=True)
 
+    def set_limits(self, pid, limits):
+        subprocess.call(['/sbin/sudo', '/sbin/prlimit', '--pid', str(pid), limits])
+  
     def set_realtime(self, pid, inc=0):
         # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
         # nproc --all
