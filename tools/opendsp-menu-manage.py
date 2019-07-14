@@ -39,12 +39,12 @@ if __name__ == '__main__':
         menu += "</item>"
 
     # tools: resizesd
-    if os.path.exists("/usr/bin/resizesd"):
-        menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
-        menu += "<item label=\"Resize SD user data\">"
-        menu += "<action name=\"Execute\"><command>/usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
-        menu += "</item>"
-        menu += "</menu>"
+    #if os.path.exists("/usr/bin/resizesd"):
+    #    menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
+    #    menu += "<item label=\"Resize SD user data\">"
+    #    menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
+    #    menu += "</item>"
+    #    menu += "</menu>"
 
     menu += "</openbox_pipe_menu>"
 

@@ -28,7 +28,7 @@ if __name__ == '__main__':
         print("<openbox_pipe_menu><item label=\"opendsp not running, please start it first...\" /></openbox_pipe_menu>")
         exit()
 
-    if len(data_mod) < 4:
+    if len(data_mod[2].strip()) == 0:
         print("<openbox_pipe_menu><item label=\"no project path setup\" /></openbox_pipe_menu>")
         exit()
     
