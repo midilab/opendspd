@@ -283,7 +283,7 @@ class Core(metaclass=Singleton):
             # load project, only for app1 if it is defined
             self.avaliable_projects = self.mod.get_projects()
             if len(self.avaliable_projects) > 0:
-                index = event.program % len(self.avaliable_projects)
+                index = (event.program-1) % len(self.avaliable_projects)
                 self.mod.load_project(self.avaliable_projects[index])
             return
         # CTRL messages

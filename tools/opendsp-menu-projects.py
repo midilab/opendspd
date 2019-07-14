@@ -50,7 +50,7 @@ if __name__ == '__main__':
 
     # make me a menu please
     menu = "<openbox_pipe_menu>"
-    for index, project in enumerate(project_list):
+    for index, project in enumerate(project_list,1):
         menu += "<item label=\"{id}: {name_mod}\">".format(id=index, name_mod=project)
         menu += "<action name=\"Execute\"><command>send_midi -J midiRT:in_1 PROGRAM,16,{}</command></action>".format(index)
         menu += "</item>"

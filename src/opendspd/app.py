@@ -52,7 +52,7 @@ class App:
     def start(self):
         # init connections pending
         self.connections_pending = self.connections
-        
+
         # setup cmd call and arguments
         call = self.app['bin'].split(" ")
         if 'args' in self.app:
