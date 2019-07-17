@@ -50,8 +50,7 @@ class App:
         self.data = {}
 
     def start(self):
-        # init connections pending
-        self.connections_pending = self.connections
+        self.connection_reset()
 
         # setup cmd call and arguments
         call = self.app['bin'].split(" ")
@@ -64,7 +63,7 @@ class App:
             if 'project_arg' in self.app:
                 call.append("{arg_project}".format(arg_project=self.app['project_arg']))
             call.append("{path_data}/{path_project}/{file_project}".format(path_data=self.opendsp.path_data, path_project="/".join(path_project), file_project=self.config['project']).strip())
-
+        
         # where are we going to run this app?
         if 'display' in self.config:        
             # start the app with or without display
@@ -108,6 +107,17 @@ class App:
         pass
 
     def connection_handler(self):
-        # generic opendsp call to handle state connections
-        connections_made = self.opendsp.handle_connections(self.connections_pending)
-        self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]        
+        # any pending connections to handle?
+        if len(self.connections_pending) > 0:
+            # generic opendsp call to connect port pairs, returns the non connected ports - still pending...
+            self.connections_pending = self.opendsp.connect_port(self.connections_pending)
+
+    def connection_reset(self):
+        # reset made up connection only
+        if len(self.connections_pending) < len(self.connections):
+            # self.connections - self.connections_pending = made up connections
+            #self.opendsp.disconnect_port(list(set(self.connections) - set(self.connections_pending)))
+            #TypeError: unhashable type: 'dict'
+            self.opendsp.disconnect_port(self.connections)
+        # reset connections pending
+        self.connections_pending = self.connections

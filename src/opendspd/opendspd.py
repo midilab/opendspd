@@ -101,12 +101,9 @@ class Core(metaclass=Singleton):
             # all our threads are in daemon mode
             #... not need to stop then
             # disconnect all jack ports
-            for ports in self.connections:
-                # allow user to regex port expression on jack clients that randon their port names
-                origin = [ data.name for data in self.jack.get_ports(ports['origin']) ]
-                dest = [ data.name for data in self.jack.get_ports(ports['dest']) ]
-                if len(origin) > 0 and len(dest) > 0:
-                    self.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))
+            # self.connections - self.connections_pending = made up connections
+            #self.disconnect_port(list(set(self.connections) - set(self.connections_pending)))
+            self.disconnect_port(self.connections)
             # stop all process
             for proc in self.proc:
                 self.proc[proc].terminate()
@@ -153,9 +150,8 @@ class Core(metaclass=Singleton):
         while self.running:
             # user new input connections
             self.process_midi()
-            # handle connection state
-            connections_made = self.handle_connections(self.connections_pending)
-            self.connections_pending = [ ports for ports in self.connections_pending if ports not in connections_made ]
+            # generic call to connect port pairs, returns the non connected ports - still pending...
+            self.connections_pending = self.connect_port(self.connections_pending)
             # health check for audio, midi and video subsystem
             #...  
             # check for update packages 
@@ -211,19 +207,19 @@ class Core(metaclass=Singleton):
         #for midi_device in glob.glob("/dev/midi*"):
         #    if midi_device in self.midi_devices:
         #        continue
-        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'midi:in_1'], shell=False) #, '-y', str(self.config['system']['system']['realtime']+4), '-Y', str(self.config['system']['system']['realtime']+4)], shell=True)
+        #    midi_device_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', midi_device, '-o', 'midiRT:in_1'], shell=False) #, '-y', str(self.config['system']['system']['realtime']+4), '-Y', str(self.config['system']['system']['realtime']+4)], shell=True)
         #    self.set_realtime(midi_device_proc.pid, 4)  
         #    self.midi_devices.append(midi_device)
         #    self.midi_devices_procs.append(midi_device_proc)
         #time.sleep(5)
 
-    def handle_connections_add(self, origin, dest):
+    def connect_port_add(self, origin, dest):
         # create a new connection state to handle
         connection = { 'origin': origin, 'dest': dest }
         self.connections.append(connection)
         self.connections_pending.append(connection)
 
-    def handle_connections(self, connections_pending):
+    def connect_port(self, connections_pending):
         connections_made = []
         for ports in connections_pending:
             # allow user to regex port expression on jack clients that randon their port names
@@ -239,7 +235,18 @@ class Core(metaclass=Singleton):
             else:
                 print("connect handler looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
         # return connections made successfully   
-        return connections_made
+        return [ ports for ports in connections_pending if ports not in connections_made ]
+
+    def disconnect_port(self, connections):        
+        for ports in connections:
+            try:
+                # allow user to regex port expression on jack clients that randon their port names
+                origin = [ data.name for data in self.jack.get_ports(ports['origin']) ]
+                dest = [ data.name for data in self.jack.get_ports(ports['dest']) ]
+                if len(origin) > 0 and len(dest) > 0:
+                    self.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))
+            except Exception as e:
+                print("error on reset disconnection: {message}".format(message=e))
 
     def load_config(self):
         try:
@@ -311,34 +318,31 @@ class Core(metaclass=Singleton):
 
         # call mididings and set it realtime alog with jack - named midi
         # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
-        # add one more rule for our internal opendsp management
-        # ChannelFilter(16) >> Port(16)
-        rules = "ChannelSplit({ 1: Port(1), 2: Port(2), 3: Port(3), 4: Port(4), 5: Port(5), 6: Port(6), 7: Port(7), 8: Port(8), 9: Port(9), 10: Port(10), 11: Port(11), 12: Port(12), 13: Port(13), 14: Port(14), 15: Port(15), 16: Port(16) })"
+        rules = "ChannelSplit({ 1: Channel(1) >> Port(1), 2: Channel(1) >> Port(2), 3: Channel(1) >> Port(3), 4: Channel(1) >> Port(4), 5: Channel(1) >> Port(5), 6: Channel(1) >> Port(6), 7: Channel(1) >> Port(7), 8: Channel(1) >> Port(8), 9: Channel(1) >> Port(9), 10: Channel(1) >> Port(10), 11: Channel(1) >> Port(11), 12: Channel(1) >> Port(12), 13: Channel(1) >> Port(13), 14: Channel(1) >> Port(14), 15: Channel(1) >> Port(15), 16: Channel(1) >> Port(16) })"
         self.proc['mididings'] = subprocess.Popen(['/usr/bin/mididings', '-R', '-c', 'midiRT', '-o', '16', rules])
         self.set_realtime(self.proc['mididings'].pid, 4)
 
         # channel 16 are mean to control opendsp interface
-        self.handle_connections_add('midiRT:out_16', 'OpenDSP:in_1')
+        self.connect_port_add('midiRT:out_16', 'OpenDSP:in_1')
 
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.config['system']:
             self.proc['on_board_midi'] = subprocess.Popen(['/usr/bin/ttymidi', '-s', self.config['system']['midi']['device'], '-b', self.config['system']['midi']['baudrate']])
             self.set_realtime(self.proc['on_board_midi'].pid, 4)
             # add to state
-            self.handle_connections_add('ttymidi:MIDI_in', 'midiRT:in_1')
+            self.connect_port_add('ttymidi:MIDI_in', 'midiRT:in_1')
 
             # set our serial to 38400 to trick raspbery goes into 31200
             #subprocess.call(['/sbin/sudo', '/usr/bin/stty', '-F', str(self.config['system']['midi']['device']), '38400'], shell=True)            
             # problem: cant get jamrouter to work without start ttymidi first, setup else where beside the baudrate?
-            #self.midi_onboard_proc = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', str(self.config['system']['midi']['device']), '-o', 'midi:in_1', '-y', str(REALTIME_PRIO+4), '-Y', str(REALTIME_PRIO+4)], shell=False)
-            #self.set_realtime(self.midi_onboard_proc.pid, 4)        
+            #self.proc['on_board_midi'] = subprocess.Popen(['/usr/bin/jamrouter', '-M', 'generic', '-D', self.config['system']['midi']['device'], '-o', 'midiRT:in_1', '-y', str(int(self.config['system']['system']['realtime'])+4), '-Y', str(int(self.config['system']['system']['realtime'])+4)], shell=False)
+            #self.set_realtime(self.proc['on_board_midi'].pid, 4)       
+            #self.connect_port_add('jamrouter:midi_out', 'midiRT:in_1') 
         
-        # start checkNewMidi Thread
+        # local midi ports to avoid auto connect
         self.local_midi_out_ports = [ self.config['app'][app_name]['midi_output'] for app_name in self.config['app'] if 'midi_output' in self.config['app'][app_name] ]
-        local_midi_ports = [ 'OpenDSP', 'midiRT', 'ttymidi', 'alsa_midi:Midi Through' ]
+        local_midi_ports = [ 'OpenDSP', 'midiRT', 'ttymidi', 'alsa_midi:Midi Through', 'jamrouter' ]
         self.local_midi_out_ports.extend(local_midi_ports)
-        #self.thread['check_midi'] = threading.Thread(target=self.check_new_midi_input, args=(), daemon=True)
-        #self.thread['check_midi'].start() 
 
     def display(self, call=None):
         environment = os.environ.copy()
@@ -387,7 +391,8 @@ class Core(metaclass=Singleton):
         return subprocess.Popen(call, env=environment)
 
     def background(self, call):
-        environment = os.environ.copy() if env == True else None
+        environment = os.environ.copy()
+        print(environment)
         return subprocess.Popen(call, env=environment)
 
     def cmd(self, call, env=False):

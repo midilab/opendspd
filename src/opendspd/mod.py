@@ -96,6 +96,8 @@ class Mod:
     def load_project(self, project):
         # only load projects if we have a main app setup
         if self.main_app in self.app:
+            # reset connections to force new ones before load new project
+            self.app_connection_reset()
             self.app[self.main_app].load_project(project)
         else:
             print("No app1 setup for main app reference on projects")
@@ -107,6 +109,10 @@ class Mod:
     def app_connection_handler(self):
         for app in self.app:
             self.app[app].connection_handler()
+
+    def app_connection_reset(self):
+        for app in self.app:
+            self.app[app].connection_reset()
 
     def gen_conn(self, config_app, app):
         conn_list = []
