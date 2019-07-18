@@ -19,6 +19,7 @@ import os
 import time
 import threading
 import glob
+import logging
 
 # for reference of opendsp.Core() singleton object
 from opendspd import opendspd
@@ -100,7 +101,7 @@ class Mod:
             self.app_connection_reset()
             self.app[self.main_app].load_project(project)
         else:
-            print("No app1 setup for main app reference on projects")
+            logging.info("No app1 setup for main app reference on projects")
 
     def app_check_health(self):
         for app in self.app:
@@ -150,7 +151,7 @@ class Mod:
                     conn['dest'] = self.config_app[name_app][port_type].replace("\"", "").split(",")[index].strip()
                     conn['origin'] = self.config_app[name_dest][port_type_dest].replace("\"", "").split(",")[index_dest].strip()
                 except:
-                    print("error, not enough data to generate port pairs")
+                    logging.error("error, not enough data to generate port pairs")
                     continue
                 
                 conn_list.append(conn)

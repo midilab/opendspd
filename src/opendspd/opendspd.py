@@ -26,6 +26,7 @@ import glob
 import signal
 import psutil
 import configparser
+import logging
 
 # Mod handler
 from . import mod
@@ -89,6 +90,9 @@ class Core(metaclass=Singleton):
         # setup signal handling
         # by default, a SIGTERM is sent, followed by 90 seconds of waiting followed by a SIGKILL.
         signal.signal(signal.SIGTERM, self.signal_handler)
+        # setup log environment
+        logging.basicConfig(level=logging.DEBUG)
+        logging.debug('OpenDSP init completed!')
 
     # catch SIGTERM and stop application
     def signal_handler(self, sig, frame):
@@ -118,7 +122,7 @@ class Core(metaclass=Singleton):
             # delete our data tmp file
             os.remove('/var/tmp/opendsp-run-data')  
         except Exception as e:
-            print("error while trying to stop opendsp: {message}".format(message=e))
+            logging.error("error while trying to stop opendsp: {message}".format(message=e))
 
     def init(self):
         # load user config files
@@ -186,7 +190,7 @@ class Core(metaclass=Singleton):
             # update our running data file
             self.update_run_data()
         except Exception as e:
-            print("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
+            logging.error("error trying to load mod {name_mod}: {message_error}".format(name_mod=name, message_error=str(e)))
 
     def get_mods(self):
         return [ os.path.basename(path_mod)[:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=self.path_data))) if os.path.basename(path_mod)[:-4] != 'app' ]
@@ -198,7 +202,7 @@ class Core(metaclass=Singleton):
             if midi_port in self.midi_port_in:           
                 continue
             try:    
-                print("opendsp hid device auto connect: {name_port} -> midiRT:in_1".format(name_port=midi_port))
+                logging.info("opendsp hid device auto connect: {name_port} -> midiRT:in_1".format(name_port=midi_port))
                 self.jack.connect(midi_port, 'midiRT:in_1')
                 self.midi_port_in.append(midi_port)
             except:
@@ -229,11 +233,11 @@ class Core(metaclass=Singleton):
                 try:
                     self.cmd("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))                        
                     connections_made.append(ports)
-                    print("connect handler found: {port_origin} {port_dest}".format(port_origin=origin[0], port_dest=dest[0]))
+                    logging.info("connect handler found: {port_origin} {port_dest}".format(port_origin=origin[0], port_dest=dest[0]))
                 except Exception as e:
-                    print("error on auto connection: {message}".format(message=e))
+                    logging.error("error on auto connection: {message}".format(message=e))
             else:
-                print("connect handler looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
+                logging.info("connect handler looking for origin({port_origin}) and dest({port_dest})".format(port_origin=ports['origin'], port_dest=ports['dest']))
         # return connections made successfully   
         return [ ports for ports in connections_pending if ports not in connections_made ]
 
@@ -246,7 +250,7 @@ class Core(metaclass=Singleton):
                 if len(origin) > 0 and len(dest) > 0:
                     self.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\"".format(port_origin=origin[0], port_dest=dest[0]))
             except Exception as e:
-                print("error on reset disconnection: {message}".format(message=e))
+                logging.error("error on reset disconnection: {message}".format(message=e))
 
     def load_config(self):
         try:
@@ -273,7 +277,7 @@ class Core(metaclass=Singleton):
                 self.config['system']['mod'] = {}
                 self.config['system']['mod']['name'] = "blank"
         except Exception as e:
-            print("error trying to load opendsp config file: {message}".format(message=e))
+            logging.error("error trying to load opendsp config file: {message}".format(message=e))
 
     def start_audio(self):
         # start jack server
@@ -366,9 +370,7 @@ class Core(metaclass=Singleton):
 
         if call == None:
             return None
-        # start app
-        # SDL_VIDEODRIVER=
-        # SDL_AUDIODRIVER=
+        # start main display app
         return subprocess.Popen(call, env=environment)
 
     def display_virtual(self, call=None):
@@ -392,7 +394,6 @@ class Core(metaclass=Singleton):
 
     def background(self, call):
         environment = os.environ.copy()
-        print(environment)
         return subprocess.Popen(call, env=environment)
 
     def cmd(self, call, env=False):
@@ -440,7 +441,7 @@ class Core(metaclass=Singleton):
             with open("/var/tmp/opendsp-run-data", "w+") as run_data:
                 run_data.writelines(data)
         except Exception as e:
-            print("error trying to update run data: {message}".format(message=e))
+            logging.error("error trying to update run data: {message}".format(message=e))
 
     def mount_fs(self, fs, action):
         if 'write'in action: 
