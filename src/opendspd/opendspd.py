@@ -193,13 +193,11 @@ class Core():
                 if os.path.basename(path_mod)[:-4] != 'app']
 
     def process_midi(self):
-        # take cares of user on the fly devices connections
+        # take cares of user on the fly hid devices connections
         jack_midi_lsp = [data.name
                          for data in self.jack.get_ports(is_midi=True, is_output=True)
-                         if all(port not in data.name
+                         if all(port.replace("\\", "") not in data.name
                                 for port in self.local_midi_out_ports)]
-        logging.debug(jack_midi_lsp)
-        logging.debug(self.local_midi_out_ports)
         for midi_port in jack_midi_lsp:
             if midi_port in self.midi_port_in:
                 continue
@@ -252,10 +250,8 @@ class Core():
         for ports in connections:
             try:
                 # allow user to regex port expression on jack clients that randon their port names
-                origin = [data.name
-                          for data in self.jack.get_ports(ports['origin'])]
-                dest = [data.name
-                        for data in self.jack.get_ports(ports['dest'])]
+                origin = [data.name for data in self.jack.get_ports(ports['origin'])]
+                dest = [data.name for data in self.jack.get_ports(ports['dest'])]
                 if len(origin) > 0 and len(dest) > 0:
                     self.cmd("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\""
                              .format(port_origin=origin[0], port_dest=dest[0]))
@@ -369,7 +365,7 @@ class Core():
         # local midi ports to avoid auto connect
         for app_name in self.config['app']:
             if 'midi_output' in self.config['app'][app_name]:
-                connections = self.config['app'][app_name]['midi_output'].replace("\"", "")
+                connections = self.config['app'][app_name]['midi_output'].replace('"', '')
                 self.local_midi_out_ports.extend([conn.strip() for conn in connections.split(",")])
         self.local_midi_out_ports.extend(['OpenDSP', 'alsa_midi:Midi Through Port-0', 'ttymidi'])
 

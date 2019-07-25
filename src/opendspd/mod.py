@@ -27,7 +27,7 @@ from . import app
 class Mod:
 
     def __init__(self, config_mod, config_app, opendsp):
-        # OpenDSP Core singleton instance
+        # OpenDSP Core instance
         self.opendsp = opendsp
         # config_mod is a modular collection configuration of config_app
         self.config_mod = config_mod
@@ -125,12 +125,12 @@ class Mod:
             self.app[app].connection_reset()
 
     def parse_conn(self, conn_string):
-        connections = conn_string.replace("\"", "")
+        connections = conn_string.replace('"', '')
         return [conn.strip() for conn in connections.split(",")]
 
     def gen_conn(self, id_app, config_app, app):
         conn_list = []
-        # construct a list of all *_input and *_output ports
+        # construct a dict of all *_input and *_output ports
         ports_list = {port_type: config_app[port_type]
                       for port_type in config_app
                       if 'input' in port_type or 'output' in port_type}
