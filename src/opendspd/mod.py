@@ -21,17 +21,14 @@ import threading
 import glob
 import logging
 
-# for reference of opendsp.Core() singleton object
-from opendspd import opendspd
-
 # main App class
 from . import app
 
 class Mod:
 
-    def __init__(self, config_mod, config_app):
+    def __init__(self, config_mod, config_app, opendsp):
         # OpenDSP Core singleton instance
-        self.opendsp = self.opendsp = opendspd.Core()
+        self.opendsp = opendsp
         # config_mod is a modular collection configuration of config_app
         self.config_mod = config_mod
         # config_app are all the applications avaliable to load into mod
@@ -47,26 +44,35 @@ class Mod:
         # running thread
         self.thread = None
 
+    def parse_config_app(self, id, config):
+        # parse id requests only for now...
+        return {option: config[option].replace('<id>', id)
+                for option in config}
+
     def start(self):
-        # construct a list of apps config objects to be used as mod apps ecosystem
-        apps = { app: self.config_mod[app] for app in self.config_mod if 'app' in app }
+        # construct a dict of apps config objects to be used as mod apps ecosystem
+        apps = {app: self.config_mod[app]
+                for app in self.config_mod if 'app' in app}
+
         # one app per config entry
         for app_id in apps:
             config = apps[app_id]
             name_app = config.get('name')
             if name_app in self.config_app:
+                # parse config app
+                config_app = self.parse_config_app(app_id, self.config_app[name_app])
                 # app1 is used as main_app reference for project change requests
                 if app_id == 'app1':
                     # this is the one used to handle projects on requests
-                    self.main_app = name_app
+                    self.main_app = app_id
                     if 'path' in config:
                         # get the project path for subdir support on user side
                         self.path_project = config['path']
                 # generate our list of pair ports connection representation between apps
-                connections = self.gen_conn(config, self.config_app[name_app])
+                connections = self.gen_conn(app_id, config, config_app)
                 # instantiate App object and keep track of it on app map
-                self.app[name_app] = app.App(config, self.config_app[name_app], connections)
-                self.app[name_app].start()
+                self.app[app_id] = app.App(config, config_app, connections, self.opendsp)
+                self.app[app_id].start()
 
         # thread the run method until we're dead
         self.thread = threading.Thread(target=self.run, args=(), daemon=True)
@@ -75,8 +81,8 @@ class Mod:
     def stop(self):
         self.running = False
         # delete all Apps objects
-        for app in self.app:
-            self.app[app].stop()
+        for app_id in self.app:
+            self.app[app_id].stop()
 
     def run(self):
         self.running = True
@@ -89,8 +95,11 @@ class Mod:
     def get_projects(self):
         # only read project directory if we have a main app setup
         if self.main_app in self.app:
-            dir_list = glob.glob("{path_data}/{path_project}/*".format(path_data=self.opendsp.path_data, path_project=self.path_project))
-            return [ os.path.basename(path_project) for path_project in sorted(dir_list) ]
+            dir_list = glob.glob("{path_data}/{path_project}/*"
+                                 .format(path_data=self.opendsp.path_data,
+                                         path_project=self.path_project))
+            return [os.path.basename(path_project)
+                    for path_project in sorted(dir_list)]
         else:
             return []
 
@@ -115,23 +124,28 @@ class Mod:
         for app in self.app:
             self.app[app].connection_reset()
 
-    def gen_conn(self, config_app, app):
+    def parse_conn(self, conn_string):
+        connections = conn_string.replace("\"", "")
+        return [conn.strip() for conn in connections.split(",")]
+
+    def gen_conn(self, id_app, config_app, app):
         conn_list = []
         # construct a list of all *_input and *_output ports
-        ports_list = { port_type: config_app[port_type] for port_type in config_app if 'input' in port_type or 'output' in port_type }
+        ports_list = {port_type: config_app[port_type]
+                      for port_type in config_app
+                      if 'input' in port_type or 'output' in port_type}
         # iterate over each port and generate the concrete name of ports to connect
         for port_type in ports_list:
-            # parse all ports by ',' and interate over then
-            dest_port_list = ports_list[port_type].replace("\"", "").split(",")
+            dest_port_list = self.parse_conn(ports_list[port_type])
             for index, dest_port in enumerate(dest_port_list):
-                conn = { 'origin': '', 'dest': '' }
+                conn = {}
                 port_type_dest = ""
-                
+
                 dest_data = dest_port.split(":")
                 if len(dest_data) != 2:
                     continue
 
-                # accessors
+                # key accessors
                 name_app = config_app['name'].strip()
                 name_dest = dest_data[0].strip()
                 index_dest = int(dest_data[1])-1
@@ -148,12 +162,13 @@ class Mod:
                     continue
 
                 try:
-                    conn['dest'] = self.config_app[name_app][port_type].replace("\"", "").split(",")[index].strip()
-                    conn['origin'] = self.config_app[name_dest][port_type_dest].replace("\"", "").split(",")[index_dest].strip()
-                except:
-                    logging.error("error, not enough data to generate port pairs")
+                    conn['origin'] = self.parse_conn(self.config_app[name_app][port_type])[index]
+                    conn['dest'] = self.parse_conn(self.config_app[name_dest][port_type_dest])[index_dest]
+                except Exception as e:
+                    logging.error("error, not enough data to generate port pairs: {message}"
+                                  .format(message=str(e)))
                     continue
-                
+
                 conn_list.append(conn)
 
         return conn_list
