@@ -104,9 +104,7 @@ class App:
             self.start()
         except Exception as e:
             logging.error("error trying to load project {name_project} on app {name_app}: {message_error}"
-                          .format(name_project=project,
-                                  name_app=self.app['name'],
-                                  message_error=str(e)))
+                          .format(name_project=project, name_app=self.app['name'], message_error=str(e)))
 
     def check_health(self):
         pass

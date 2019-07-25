@@ -219,16 +219,18 @@ class Core():
         connections_made = []
         for ports in connections_pending:
             # allow user to regex port expression on jack clients that randon their port names
-            origin = [data.name
-                      for data in self.jack.get_ports(ports['origin'])]
-            dest = [data.name
-                    for data in self.jack.get_ports(ports['dest'])]
+            origin = [data.name for data in self.jack.get_ports(ports['origin'])]
+            dest = [data.name for data in self.jack.get_ports(ports['dest'])]
 
             if len(origin) > 0 and len(dest) > 0:
-                if origin[0] in [port.name
-                                 for port in self.jack.get_all_connections(dest[0])]:
+                jack_ports = [port.name
+                              for port in self.jack.get_all_connections(dest[0])
+                              if port.name == origin[0]]
+
+                if len(jack_ports) > 0:
                     connections_made.append(ports)
                     continue
+
                 try:
                     self.cmd("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\""
                              .format(port_origin=origin[0], port_dest=dest[0]))
@@ -242,9 +244,7 @@ class Core():
                 logging.info("connect handler looking for origin({port_origin}) and dest({port_dest})"
                              .format(port_origin=ports['origin'], port_dest=ports['dest']))
         # return connections made successfully
-        return [ports
-                for ports in connections_pending
-                if ports not in connections_made]
+        return [ports for ports in connections_pending if ports not in connections_made]
 
     def disconnect_port(self, connections):
         for ports in connections:
