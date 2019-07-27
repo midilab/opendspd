@@ -17,10 +17,13 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 from opendspd import opendspd
 
+# Data bank paths
+USER_DATA = "/home/opendsp/data"
+
 if __name__ == '__main__':
 
-    # get opendsp core singleton instance
-    opendsp = opendspd.Core()
+    # get opendsp core instance
+    opendsp = opendspd.Core(USER_DATA)
 
     # initing opendsp
     opendsp.init()

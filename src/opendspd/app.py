@@ -65,33 +65,32 @@ class App:
         if 'display' in self.config:
             # start the app with or without display
             if 'native' in self.config['display']:
-                self.data['proc'] = self.opendsp.display(call)
+                self.data['proc'] = self.opendsp.run_display('native', call)
             elif 'virtual' in self.config['display']:
-                self.data['proc'] = self.opendsp.display_virtual(call)
+                self.data['proc'] = self.opendsp.run_display('virtual', call)
         else:
-            self.data['proc'] = self.opendsp.background(call)
+            self.data['proc'] = self.opendsp.run_background(call)
 
         # set limits?
         if 'limits' in self.app:
-            self.opendsp.set_limits(self.data['proc'].pid,
-                                    self.app['limits'])
+            self.opendsp.set_limits(self.data['proc'].pid, self.app['limits'])
+
         # set realtime priority?
         if 'realtime' in self.app:
-            self.opendsp.set_realtime(self.data['proc'].pid,
-                                      int(self.app['realtime']))
+            self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))
 
         # generate a list from, parsed by ','
         if 'audio_input' in self.app:
-            self.data['audio_input'] = [audio_input
+            self.data['audio_input'] = [audio_input.strip()
                                         for audio_input in self.app['audio_input'].split(",")]
         if 'audio_output' in self.app:
-            self.data['audio_output'] = [audio_output
+            self.data['audio_output'] = [audio_output.strip()
                                          for audio_output in self.app['audio_output'].split(",")]
         if 'midi_input' in self.app:
-            self.data['midi_input'] = [midi_input
+            self.data['midi_input'] = [midi_input.strip()
                                        for midi_input in self.app['midi_input'].split(",")]
         if 'midi_output' in self.app:
-            self.data['midi_output'] = [midi_output
+            self.data['midi_output'] = [midi_output.strip()
                                         for midi_output in self.app['midi_output'].split(",")]
 
     def load_project(self, project):
@@ -103,8 +102,10 @@ class App:
             # restart it again
             self.start()
         except Exception as e:
-            logging.error("error trying to load project {name_project} on app {name_app}: {message_error}"
-                          .format(name_project=project, name_app=self.app['name'], message_error=str(e)))
+            logging.error("error loading project {project} on app {app}: {message}"
+                          .format(project=project,
+                                  app=self.app['name'],
+                                  message=str(e)))
 
     def check_health(self):
         pass
@@ -118,9 +119,7 @@ class App:
     def connection_reset(self):
         # reset made up connection only
         if len(self.connections_pending) < len(self.connections):
-            # self.connections - self.connections_pending = made up connections
-            #self.opendsp.disconnect_port(list(set(self.connections) - set(self.connections_pending)))
-            #TypeError: unhashable type: 'dict'
+            # ask opendsp core to do so...
             self.opendsp.disconnect_port(self.connections)
         # reset connections pending
         self.connections_pending = self.connections

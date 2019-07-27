@@ -30,7 +30,7 @@ class Mod:
         # OpenDSP Core instance
         self.opendsp = opendsp
         # config_mod is a modular collection configuration of config_app
-        self.config_mod = config_mod
+        self.config = config_mod
         # config_app are all the applications avaliable to load into mod
         self.config_app = config_app
         # App objects map
@@ -44,15 +44,16 @@ class Mod:
         # running thread
         self.thread = None
 
-    def parse_config_app(self, id, config):
-        # parse id requests only for now...
-        return {option: config[option].replace('<id>', id)
-                for option in config}
+    def stop(self):
+        self.running = False
+        # delete all Apps objects
+        for app_id in self.app:
+            self.app[app_id].stop()
 
     def start(self):
         # construct a dict of apps config objects to be used as mod apps ecosystem
-        apps = {app: self.config_mod[app]
-                for app in self.config_mod if 'app' in app}
+        apps = {app: self.config[app]
+                for app in self.config if 'app' in app}
 
         # one app per config entry
         for app_id in apps:
@@ -75,21 +76,17 @@ class Mod:
                 self.app[app_id].start()
 
         # thread the run method until we're dead
-        self.thread = threading.Thread(target=self.run, args=(), daemon=True)
+        self.thread = threading.Thread(target=self.run,
+                                       daemon=True,
+                                       args=())
         self.thread.start()
-
-    def stop(self):
-        self.running = False
-        # delete all Apps objects
-        for app_id in self.app:
-            self.app[app_id].stop()
 
     def run(self):
         self.running = True
         while self.running:
-            # handler audio and midi connections from config_mod
-            self.app_connection_handler()
-            self.app_check_health()
+            # handler audio and midi connections from config
+            self.connection_handler()
+            self.check_health()
             time.sleep(5)
 
     def get_projects(self):
@@ -107,28 +104,38 @@ class Mod:
         # only load projects if we have a main app setup
         if self.main_app in self.app:
             # reset connections to force new ones before load new project
-            self.app_connection_reset()
+            self.connection_reset()
             self.app[self.main_app].load_project(project)
         else:
             logging.info("No app1 setup for main app reference on projects")
 
-    def app_check_health(self):
+    def check_health(self):
         for app in self.app:
             self.app[app].check_health()
 
-    def app_connection_handler(self):
+    def connection_handler(self):
         for app in self.app:
             self.app[app].connection_handler()
 
-    def app_connection_reset(self):
+    def connection_reset(self):
         for app in self.app:
             self.app[app].connection_reset()
 
+    def parse_config_app(self, id, config):
+        # parse id requests only for now...
+        return {option: config[option].replace('<id>', id)
+                for option in config}
+
     def parse_conn(self, conn_string):
         connections = conn_string.replace('"', '')
-        return [conn.strip() for conn in connections.split(",")]
+        return [conn.strip()
+                for conn in connections.split(",")]
 
     def gen_conn(self, id_app, config_app, app):
+        """Genarates Connection Pairs
+        generates a list of jack based connections pairs
+        to be used for auto connection support
+        """
         conn_list = []
         # construct a dict of all *_input and *_output ports
         ports_list = {port_type: config_app[port_type]
