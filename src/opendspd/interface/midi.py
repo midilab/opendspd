@@ -67,12 +67,11 @@ class MidiInterface():
                                                          args=())
         self.thread['processor'].start()
 
-        # call mididings and set it realtime alog with jack - named midi
         channel_list = ", ".join(["{chn}: Channel(1) >> Port({chn})".format(chn=channel)
                                   for channel in range(1, 17)])
         rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
 
-        # run on background
+        # call mididings and set it realtime alog with jack - named midi
         self.proc['mididings'] = self.opendsp.run_background(['/usr/bin/mididings',
                                                               '-R', '-c', 'midiRT', '-o', '16', rules])
 

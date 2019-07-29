@@ -27,7 +27,7 @@ import logging
 
 # Mod handler
 from . import mod
-# interface pack(jackd, osc, midi, display)
+# Interfaces pack(jackd, osc, midi, display)
 from .interface.jackd import JackdInterface
 from .interface.osc import OscInterface
 from .interface.midi import MidiInterface
@@ -221,26 +221,27 @@ class Core():
             logging.error("error trying to load opendsp config file: {message}"
                           .format(message=e))
 
-    def manage_display(self, config_mod):
+    def manage_display(self, config):
         """Manage Display
-        start and stop displays to match the config_mod requested only
+        start and stop displays to match the config requested only
         it help us save resources in case we dont need then
         """
-        # find what display resources we need from config_mod
+        # find what display resources we need from config
         display_mod = set()
-        apps = {app: config_mod[app]
-                for app in config_mod
-                if 'app' in app}
 
+        # parse [appX] config nodes
+        apps = {app: config[app]
+                for app in config
+                if 'app' in app}
         for app in apps:
             if 'display' in app:
                 display_mod.add(app['display'].strip())
 
-        # any mod display definition to handle from mod?
-        if 'mod' in config_mod:
-            # need to start display not used for other apps?
-            if 'display' in config_mod['mod']:
-                for display in self.config['mod']['display'].split(","):
+        # parse [mod] config node
+        if 'mod' in config:
+            # display requests without app
+            if 'display' in config['mod']:
+                for display in config['mod']['display'].split(","):
                     display_mod.add(display.strip())
 
         # some one to stop?
@@ -271,10 +272,13 @@ class Core():
         # setup common SDL environment
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
+        if display == 'native':
+            environment["DISPLAY"] = ":0"
+        if display == 'virtual':
+            environment["DISPLAY"] = ":1"
 
         # virtual display init
         if self.display['virtual'] == False and display == 'virtual':
-            environment["DISPLAY"] = ":1"
             # start virtual display service
             subprocess.run(['/sbin/sudo',
                             '/sbin/systemctl', 'start', 'vdisplay'], env=environment)
@@ -285,7 +289,6 @@ class Core():
 
         # native display init
         if self.display['native'] == False and display == 'native':
-            environment["DISPLAY"] = ":0"
             # start display service
             subprocess.run(['/sbin/sudo',
                             '/sbin/systemctl', 'start', 'display'], env=environment)

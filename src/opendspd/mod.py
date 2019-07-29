@@ -110,18 +110,19 @@ class Mod:
             return []
 
     def get_project_by_idx(self, idx):
-        if self.mod is None:
+        # only read project directory if we have a main app setup
+        if self.main_app in self.app:
+            projects = self.get_projects()
+            size = len(projects)
+            if size > 0:
+                return projects[idx % size]
+        else:
             return None
-        projects = self.get_projects()
-        size = len(projects)
-        if size > 0:
-            return projects[idx % size]
-        return None
 
     def get_mods(self):
         return [os.path.basename(path_mod)[:-4]
                 for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg"
-                                                 .format(path_data=self.path_data)))
+                                                 .format(path_data=self.opendsp.path_data)))
                 if os.path.basename(path_mod)[:-4] != 'app']
 
     def get_mod_by_idx(self, idx):

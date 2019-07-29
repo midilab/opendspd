@@ -118,6 +118,6 @@ class App:
         # reset made up connection only
         if len(self.connections_pending) < len(self.connections):
             # ask opendsp core to do so...
-            self.opendsp.jackd.disconnect_port(self.connections)
+            self.opendsp.jackd.disconnect(self.connections)
         # reset connections pending
         self.connections_pending = self.connections

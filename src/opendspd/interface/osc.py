@@ -27,19 +27,16 @@ class OscInterface(ServerThread):
         self.config = opendsp.config['system']['osc']
         ServerThread.__init__(self, self.config['port'])
 
-    def start(self):
-        pass
-
     @make_method('/sys', 's')
     def sys_call(self, path, args):
-        call = args
+        call = args[0]
         #self.opendsp.sys_call(call)
         logging.debug("sys call received '%s'" % path)
 
     @make_method('/mod', 'i')
     def mod_call(self, path, args):
         logging.debug("received message '%s'" % path)
-        mod_id = args
+        mod_id = args[0]
         if self.opendsp.mod is not None:
             mod = self.opendsp.mod.get_mod_by_idx(mod_id)
             if mod is not None:
@@ -48,7 +45,7 @@ class OscInterface(ServerThread):
     @make_method('/prj', 'i')
     def prj_call(self, path, args):
         logging.debug("received message '%s'" % path)
-        project_id = args
+        project_id = args[0]
         if self.opendsp.mod is not None:
             project = self.opendsp.mod.get_project_by_idx(project_id)
             if project is not None:
