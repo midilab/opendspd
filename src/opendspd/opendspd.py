@@ -155,17 +155,17 @@ class Core():
         instantiate and start the mod
         """
         try:
+            # stop and destroy mod instance in case
+            if self.mod != None:
+                self.mod.stop()
+                del self.mod
+
             # read our cfg file into memory
             del self.config['mod']
             self.config['mod'] = configparser.ConfigParser()
             self.config['mod'].read("{path_data}/mod/{name_mod}.cfg"
                                     .format(path_data=self.path_data,
                                             name_mod=name))
-
-            # stop and destroy mod instance in case
-            if self.mod != None:
-                self.mod.stop()
-                del self.mod
 
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])
@@ -234,8 +234,8 @@ class Core():
                 for app in config
                 if 'app' in app}
         for app in apps:
-            if 'display' in app:
-                display_mod.add(app['display'].strip())
+            if 'display' in apps[app]:
+                display_mod.add(apps[app]['display'].strip())
 
         # parse [mod] config node
         if 'mod' in config:
@@ -248,10 +248,9 @@ class Core():
         display_run = set([display
                            for display in self.display
                            if self.display[display] == True])
-        stop_display = display_run - display_mod
-
+        display_stop = display_run - display_mod
         for display in self.display:
-            if display in stop_display:
+            if display in display_stop:
                 self.stop_display(display)
             elif display in display_mod and display not in display_run:
                 self.run_display(display)
