@@ -51,11 +51,12 @@ class OscInterface(ServerThread):
             if project is not None:
                 self.opendsp.mod.load_project(project)
 
-    @make_method('/midi', 'si')
+    @make_method('/midi', 'siii')
     def midi_call(self, path, args):
-        logging.debug("received message '%s'" % path)
-        cmd, value = args
-        #self.opendsp.midi.send_message()
+        logging.debug("OscInterface '%s'" % path)
+        cmd, channel, data1, data2 = args
+        if cmd in self.opendsp.midi.midi_cmd:
+            self.opendsp.midi.send_message(cmd, data1, data2, channel)
 
     @make_method(None, None)
     def fallback(self, path, args):

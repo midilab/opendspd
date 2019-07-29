@@ -30,6 +30,7 @@ import logging
 
 # MIDI Support
 from mididings import *
+import rtmidi
 
 class MidiInterface():
     """
@@ -47,6 +48,12 @@ class MidiInterface():
         self.blacklist = ['OpenDSP',
                           'alsa_midi:Midi Through Port-0',
                           'ttymidi']
+        # midi standard cmd byte definitions
+        self.midi_cmd = {'cc': 0xB0,
+                         'note_on': 0x90,
+                         'note_off': 0x80,
+                         'pitch_bend': 0xE0,
+                         'program_change': 0xC0}
         # all procs and threads references managed by opendsp
         self.proc = {}
         self.thread = {}
@@ -55,6 +62,8 @@ class MidiInterface():
         # disconnect all ports
         for port in self.connections:
             self.opendsp.jackd.disconnect(self.connections)
+        # destroying rtmidi object
+        del self.midi_out
         # stop all procs
         for proc in self.proc:
             self.proc[proc].terminate()
@@ -81,6 +90,13 @@ class MidiInterface():
         # channel 16 are mean to control opendsp interface
         self.port_add('midiRT:out_16', 'OpenDSP:in_1')
 
+        # virtual midi output port for generic usage
+        self.midi_out = rtmidi.MidiOut()
+        # creates alsa_midi:RtMidiOut Client opendsp (out)
+        self.midi_out.open_virtual_port("opendsp")
+        # add to state
+        #self.port_add('alsa_midi:RtMidiOut', 'midiRT:in_1')
+
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.opendsp.config['system']:
             # run on background
@@ -98,6 +114,14 @@ class MidiInterface():
             if 'midi_output' in self.opendsp.config['app'][app_name]:
                 connections = self.opendsp.config['app'][app_name]['midi_output'].replace('"', '')
                 self.blacklist.extend([conn.strip() for conn in connections.split(",")])
+
+    def send_message(self, cmd, data1, data2, channel):
+        if cmd in self.midi_cmd:
+            status = (self.midi_cmd[cmd] & 0xf0) | ((channel-1) & 0xf0)
+            message = (status, data1, data2)
+            logging.debug("sending midi message {cmd}: {message}".format(cmd=cmd,
+                                                                         message=message))
+            self.midi_out.send_message(message)
 
     def midi_queue(self, event):
         # PROGRAM CHANGE messages: for project change at mod level
@@ -144,10 +168,11 @@ class MidiInterface():
         hid devices connections
         """
         jack_midi_lsp = [data.name
-                         for data in self.opendsp.jackd.jack.get_ports(is_midi=True, is_output=True)
-                         if all(port.replace("\\", "") not in data.name
-                                for port in self.blacklist)]
+                         for data in self.opendsp.jackd.client.get_ports(is_midi=True, is_output=True)
+                         if all(port.replace("\\", "") not in data.name for port in self.blacklist)]
+
         for midi_port in jack_midi_lsp:
+            midi_port = midi_port.replace(" ", "\\ ").replace("(", "\\(").replace(")", "\\)")
             if midi_port in self.hid_devices:
                 continue
             try:

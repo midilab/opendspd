@@ -27,7 +27,7 @@ class JackdInterface():
     def __init__(self, opendsp):
         self.opendsp = opendsp
         self.config = opendsp.config['system']['audio']
-        self.jack = None
+        self.client = None
         self.proc = {}
 
     def stop(self):
@@ -52,20 +52,20 @@ class JackdInterface():
         self.opendsp.set_realtime(self.proc['jackd'].pid, 4)
 
         # start jack client
-        self.jack = jack.Client('opendsp_interface')
-        self.jack.activate()
+        self.client = jack.Client('opendsp_jack')
+        self.client.activate()
 
     def connect(self, connections_pending):
         connections_made = []
         for ports in connections_pending:
             # allow user to regex port expression on jack clients that randon their port names
-            origin = [data.name for data in self.jack.get_ports(ports['origin'])]
-            dest = [data.name for data in self.jack.get_ports(ports['dest'])]
+            origin = [data.name for data in self.client.get_ports(ports['origin'])]
+            dest = [data.name for data in self.client.get_ports(ports['dest'])]
 
             if len(origin) > 0 and len(dest) > 0:
                 # port pair already connected? append it to connections_made
                 jack_ports = [port.name
-                              for port in self.jack.get_all_connections(dest[0])
+                              for port in self.client.get_all_connections(dest[0])
                               if port.name == origin[0]]
                 if len(jack_ports) > 0:
                     connections_made.append(ports)
@@ -90,8 +90,8 @@ class JackdInterface():
         for ports in connections:
             try:
                 # allow user to regex port expression on jack clients that randon their port names
-                origin = [data.name for data in self.jack.get_ports(ports['origin'])]
-                dest = [data.name for data in self.jack.get_ports(ports['dest'])]
+                origin = [data.name for data in self.client.get_ports(ports['origin'])]
+                dest = [data.name for data in self.client.get_ports(ports['dest'])]
                 if len(origin) > 0 and len(dest) > 0:
                     self.opendsp.call("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\""
                              .format(port_origin=origin[0], port_dest=dest[0]))
