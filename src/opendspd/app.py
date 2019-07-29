@@ -15,8 +15,6 @@
 #
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 # Common system tools
-import os
-import re
 import logging
 
 class App:
@@ -36,7 +34,7 @@ class App:
 
     def stop(self):
         # disconnect all jack ports
-        self.opendsp.disconnect_port(self.connections)
+        self.opendsp.jackd.disconnect(self.connections)
         # kill the app process and clear object state
         self.data['proc'].terminate()
         del self.data
@@ -114,12 +112,12 @@ class App:
         # any pending connections to handle?
         if len(self.connections_pending) > 0:
             # generic opendsp call to connect port pairs, returns the non connected ports - still pending...
-            self.connections_pending = self.opendsp.connect_port(self.connections_pending)
+            self.connections_pending = self.opendsp.jackd.connect(self.connections_pending)
 
     def connection_reset(self):
         # reset made up connection only
         if len(self.connections_pending) < len(self.connections):
             # ask opendsp core to do so...
-            self.opendsp.disconnect_port(self.connections)
+            self.opendsp.jackd.disconnect_port(self.connections)
         # reset connections pending
         self.connections_pending = self.connections

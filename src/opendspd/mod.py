@@ -89,6 +89,15 @@ class Mod:
             self.check_health()
             time.sleep(5)
 
+    def load_project(self, project):
+        # only load projects if we have a main app setup
+        if self.main_app in self.app:
+            # reset connections to force new ones before load new project
+            self.connection_reset()
+            self.app[self.main_app].load_project(project)
+        else:
+            logging.info("No app1 setup for main app reference on projects")
+
     def get_projects(self):
         # only read project directory if we have a main app setup
         if self.main_app in self.app:
@@ -100,14 +109,27 @@ class Mod:
         else:
             return []
 
-    def load_project(self, project):
-        # only load projects if we have a main app setup
-        if self.main_app in self.app:
-            # reset connections to force new ones before load new project
-            self.connection_reset()
-            self.app[self.main_app].load_project(project)
-        else:
-            logging.info("No app1 setup for main app reference on projects")
+    def get_project_by_idx(self, idx):
+        if self.mod is None:
+            return None
+        projects = self.get_projects()
+        size = len(projects)
+        if size > 0:
+            return projects[idx % size]
+        return None
+
+    def get_mods(self):
+        return [os.path.basename(path_mod)[:-4]
+                for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg"
+                                                 .format(path_data=self.path_data)))
+                if os.path.basename(path_mod)[:-4] != 'app']
+
+    def get_mod_by_idx(self, idx):
+        mods = self.get_mods()
+        size = len(mods)
+        if size > 0:
+            return mods[idx%size]
+        return None
 
     def check_health(self):
         for app in self.app:

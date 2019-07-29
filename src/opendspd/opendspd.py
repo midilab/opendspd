@@ -16,12 +16,9 @@
 # For a full copy of the GNU General Public License see the doc/GPL.txt file.
 # Common system tools
 import os
-import sys
 import time
 import datetime
 import subprocess
-import threading
-import importlib
 import glob
 import signal
 import psutil
@@ -30,12 +27,11 @@ import logging
 
 # Mod handler
 from . import mod
-
-# MIDI Support
-from mididings import *
-
-# Jack support
-import jack
+# interface pack(jackd, osc, midi, display)
+from .interface.jackd import JackdInterface
+from .interface.osc import OscInterface
+from .interface.midi import MidiInterface
+from .interface.display import DisplayInterface
 
 class Core():
     """OpenDSP main core
@@ -50,25 +46,14 @@ class Core():
     """
 
     def __init__(self, path_data):
+        # interfaces instance references
+        self.jackd = None
+        self.osc = None
+        self.midi = None
         # running Mod instance reference
-        self.current_mod = None
+        self.mod = None
         # running state
         self.running = False
-        # default data path
-        self.path_data = path_data
-        self.updates_counter = 0
-        # all mods and projects avaliable to load
-        self.mods = []
-        self.projects = []
-        # manage the internal state of user midi input auto connections
-        self.hid_devices = []
-        self.opendsp_devices = []
-        # connections state to handle
-        self.connections = []
-        self.connections_pending = []
-        # all procs and threads references managed by opendsp
-        self.proc = {}
-        self.thread = {}
         # display management running state
         self.display = {}
         self.display['native'] = False
@@ -78,12 +63,16 @@ class Core():
         self.config['system'] = configparser.ConfigParser()
         self.config['app'] = configparser.ConfigParser()
         self.config['mod'] = None
+        # state attributes
+        self.path_data = path_data
+        self.updates_counter = 0
 
         # setup signal handling
-        # by default, a SIGTERM is sent, followed by 90 seconds of waiting followed by a SIGKILL.
         signal.signal(signal.SIGTERM, self.signal_handler)
+
         # setup log environment
         logging.basicConfig(level=logging.DEBUG)
+
         logging.info('OpenDSP engine ready!')
 
     # catch SIGTERM and stop application
@@ -93,13 +82,13 @@ class Core():
     def stop(self):
         try:
             # stop mod instance
-            self.current_mod.stop()
-            # all our threads are in daemon mode
-            #... not need to stop then
-            self.disconnect_port(self.connections)
-            # stop all process
-            for proc in self.proc:
-                self.proc[proc].terminate()
+            self.mod.stop()
+            # stoping interfaces
+            self.midi.stop()
+            self.osc.stop()
+            self.jackd.stop()
+            # auto save config?
+            #...
             # delete our data tmp file
             os.remove('/var/tmp/opendsp-run-data')
         except Exception as e:
@@ -107,32 +96,47 @@ class Core():
                           .format(message=e))
 
     def init(self):
-        logging.info('OpenDSP initing...')
-        # load user config files
+        """Init
+        reads config files and initing all interfaces
+        """
+        logging.info('Initing Core')
+
+        # config
+        logging.info('Loading config files')
         self.load_config()
-        # start Audio engine
-        self.start_audio()
-        # start MIDI engine
-        self.start_midi()
+
+        # interfaces
+        logging.info('Initing Jackd Interface')
+        self.jackd = JackdInterface(self)
+        self.jackd.start()
+
+        logging.info('Initing OSC Interface')
+        self.osc = OscInterface(self)
+        self.osc.start()
+
+        logging.info('Initing MIDI Interface')
+        self.midi = MidiInterface(self)
+        self.midi.start()
+
         logging.info('OpenDSP init completed!')
 
     def run(self):
         # script call for machine specific setup/tunning
         self.machine_setup()
 
-        # read all avaliable mods names into memory
-        self.mods = self.get_mods()
-
         # load mod
         self.load_mod(self.config['system']['mod']['name'])
 
         # start running state
         self.running = True
+
+        logging.info('OpenDSP up and running!')
+
         while self.running:
-            # user new input connections
-            self.hid_lookup()
+            # interface handlers
+            self.midi.handle()
             # handling port connection state
-            self.connection_handle()
+            #self.jackd.handle()
             # health check for audio, midi and video subsystem
             self.health_check()
             # check for update packages
@@ -142,6 +146,80 @@ class Core():
 
         # no running any more? call stop to handle all running process
         self.stop()
+
+    def load_mod(self, name):
+        """Load a Mod
+        get data from mod cfg
+        delete and stop a running mod
+        checks and handle display needs
+        instantiate and start the mod
+        """
+        try:
+            # read our cfg file into memory
+            del self.config['mod']
+            self.config['mod'] = configparser.ConfigParser()
+            self.config['mod'].read("{path_data}/mod/{name_mod}.cfg"
+                                    .format(path_data=self.path_data,
+                                            name_mod=name))
+
+            # stop and destroy mod instance in case
+            if self.mod != None:
+                self.mod.stop()
+                del self.mod
+
+            # inteligent display managment to save our beloved resources
+            self.manage_display(self.config['mod'])
+
+            # instantiate Mod object
+            self.mod = mod.Mod(self.config['mod'], self.config['app'], self)
+
+            # get mod application ecosystem up and running
+            self.mod.start()
+
+            # update our running data file
+            self.update_run_data()
+        except Exception as e:
+            logging.error("error loading mod {name}: {message}"
+                          .format(name=name, message=str(e)))
+
+    def health_check(self):
+        pass
+
+    def save_config(self, config):
+        pass
+
+    def load_config(self):
+        try:
+            # read apps definitions
+            self.config['app'].read("{path_data}/mod/app/ecosystem.cfg"
+                                    .format(path_data=self.path_data))
+
+            # loading general system config
+            self.config['system'].read("{path_data}/system.cfg"
+                                       .format(path_data=self.path_data))
+
+            # audio setup
+            # if system config file does not exist, load default values
+            if 'audio' not in self.config['system']:
+                # audio defaults
+                self.config['system']['audio'] = {}
+                self.config['system']['audio']['rate'] = '48000'
+                self.config['system']['audio']['period'] = '8'
+                self.config['system']['audio']['buffer'] = '256'
+                self.config['system']['audio']['hardware'] = 'hw:0,0'
+            if 'system' not in self.config['system']:
+                self.config['system']['system'] = {}
+                self.config['system']['system']['usage'] = '75'
+                self.config['system']['system']['realtime'] = '95'
+            if 'mod' not in self.config['system']:
+                self.config['system']['mod'] = {}
+                self.config['system']['mod']['name'] = "blank"
+            if 'osc' not in self.config['system']:
+                self.config['system']['osc'] = {}
+                self.config['system']['osc']['port'] = '1234'
+        except Exception as e:
+            logging.error("error trying to load opendsp config file: {message}"
+                          .format(message=e))
 
     def manage_display(self, config_mod):
         """Manage Display
@@ -176,239 +254,6 @@ class Core():
                 self.stop_display(display)
             elif display in display_mod and display not in display_run:
                 self.run_display(display)
-
-    def load_mod(self, name):
-        """Load a Mod
-        get data from mod cfg
-        delete and stop a running mod
-        checks and handle display needs
-        instantiate and start the mod
-        """
-        try:
-            # read our cfg file into memory
-            del self.config['mod']
-            self.config['mod'] = configparser.ConfigParser()
-            self.config['mod'].read("{path_data}/mod/{name_mod}.cfg"
-                                    .format(path_data=self.path_data,
-                                            name_mod=name))
-
-            # stop and destroy mod instance in case
-            if self.current_mod != None:
-                self.current_mod.stop()
-                del self.current_mod
-
-            # inteligent display managment to save our beloved resources
-            self.manage_display(self.config['mod'])
-
-            # instantiate Mod object
-            self.current_mod = mod.Mod(self.config['mod'],
-                                       self.config['app'],
-                                       self)
-
-            # get mod application ecosystem up and running
-            self.current_mod.start()
-
-            # update our running data file
-            self.update_run_data()
-        except Exception as e:
-            logging.error("error loading mod {name}: {message}"
-                          .format(name=name, message=str(e)))
-
-    def get_mods(self):
-        return [os.path.basename(path_mod)[:-4]
-                for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg"
-                                                 .format(path_data=self.path_data)))
-                if os.path.basename(path_mod)[:-4] != 'app']
-
-    def hid_lookup(self):
-        """Hid Lookup
-        take cares of user on the fly
-        hid devices connections
-        """
-        jack_midi_lsp = [data.name
-                         for data in self.jack.get_ports(is_midi=True, is_output=True)
-                         if all(port.replace("\\", "") not in data.name
-                                for port in self.opendsp_devices)]
-        for midi_port in jack_midi_lsp:
-            if midi_port in self.hid_devices:
-                continue
-            try:
-                logging.info("opendsp hid device auto connect: {name_port} -> midiRT:in_1"
-                             .format(name_port=midi_port))
-                self.jack.connect(midi_port, 'midiRT:in_1')
-                self.hid_devices.append(midi_port)
-            except:
-                pass
-
-    def health_check(self):
-        pass
-
-    def connection_handle(self):
-        """Connection Handle
-        generic call to connect port pairs
-        returns the non connected ports - still pending...
-        """
-        self.connections_pending = self.connect_port(self.connections_pending)
-
-    def connect_port_add(self, origin, dest):
-        """Connection Port Add
-        create a new connection state to handle
-        """
-        connection = {'origin': origin, 'dest': dest}
-        self.connections.append(connection)
-        self.connections_pending.append(connection)
-
-    def connect_port(self, connections_pending):
-        connections_made = []
-        for ports in connections_pending:
-            # allow user to regex port expression on jack clients that randon their port names
-            origin = [data.name for data in self.jack.get_ports(ports['origin'])]
-            dest = [data.name for data in self.jack.get_ports(ports['dest'])]
-
-            if len(origin) > 0 and len(dest) > 0:
-                # port pair already connected? append it to connections_made
-                jack_ports = [port.name
-                              for port in self.jack.get_all_connections(dest[0])
-                              if port.name == origin[0]]
-                if len(jack_ports) > 0:
-                    connections_made.append(ports)
-                    continue
-
-                try:
-                    self.call("/usr/bin/jack_connect \"{port_origin}\" \"{port_dest}\""
-                             .format(port_origin=origin[0], port_dest=dest[0]))
-                    connections_made.append(ports)
-                    logging.info("connect handler found: {port_origin} {port_dest}"
-                                 .format(port_origin=origin[0], port_dest=dest[0]))
-                except Exception as e:
-                    logging.error("error on auto connection: {message}"
-                                  .format(message=e))
-            else:
-                logging.info("connect handler looking for origin({port_origin}) and dest({port_dest})"
-                             .format(port_origin=ports['origin'], port_dest=ports['dest']))
-        # return connections made successfully
-        return [ports for ports in connections_pending if ports not in connections_made]
-
-    def disconnect_port(self, connections):
-        for ports in connections:
-            try:
-                # allow user to regex port expression on jack clients that randon their port names
-                origin = [data.name for data in self.jack.get_ports(ports['origin'])]
-                dest = [data.name for data in self.jack.get_ports(ports['dest'])]
-                if len(origin) > 0 and len(dest) > 0:
-                    self.call("/usr/bin/jack_disconnect \"{port_origin}\" \"{port_dest}\""
-                             .format(port_origin=origin[0], port_dest=dest[0]))
-            except Exception as e:
-                logging.error("error on reset disconnection: {message}"
-                              .format(message=e))
-
-    def save_config(self, config):
-        pass
-
-    def load_config(self):
-        try:
-            # read apps definitions
-            self.config['app'].read("{path_data}/mod/app/ecosystem.cfg"
-                                    .format(path_data=self.path_data))
-
-            # loading general system config
-            self.config['system'].read("{path_data}/system.cfg"
-                                       .format(path_data=self.path_data))
-
-            # audio setup
-            # if system config file does not exist, load default values
-            if 'audio' not in self.config['system']:
-                # audio defaults
-                self.config['system']['audio'] = {}
-                self.config['system']['audio']['rate'] = '48000'
-                self.config['system']['audio']['period'] = '8'
-                self.config['system']['audio']['buffer'] = '256'
-                self.config['system']['audio']['hardware'] = 'hw:0,0'
-            if 'system' not in self.config['system']:
-                self.config['system']['system'] = {}
-                self.config['system']['system']['usage'] = '75'
-                self.config['system']['system']['realtime'] = '95'
-            if 'mod' not in self.config['system']:
-                self.config['system']['mod'] = {}
-                self.config['system']['mod']['name'] = "blank"
-        except Exception as e:
-            logging.error("error trying to load opendsp config file: {message}"
-                          .format(message=e))
-
-    def start_audio(self):
-        # start jack server
-        self.proc['jackd'] = subprocess.Popen(['/usr/bin/jackd',
-                                               '-R', '-t10000', '-dalsa',
-                                               '-d' + self.config['system']['audio']['hardware'],
-                                               '-r' + self.config['system']['audio']['rate'],
-                                               '-p' + self.config['system']['audio']['buffer'],
-                                               '-n' + self.config['system']['audio']['period'],
-                                               '-Xseq'])
-        self.set_realtime(self.proc['jackd'].pid, 4)
-
-        # start jack client
-        self.jack = jack.Client('odsp_manager')
-        self.jack.activate()
-
-    def midi_queue(self, event):
-        # PROGRAM messages
-        if hasattr(event, 'program'):
-            # load project, only for app1 if it is defined
-            self.projects = self.current_mod.get_projects()
-            if len(self.projects) > 0:
-                index = (event.program-1) % len(self.projects)
-                self.current_mod.load_project(self.projects[index])
-            return
-        # CTRL messages
-        if hasattr(event, 'ctrl'):
-            if event.ctrl == 120:
-                self.mods = self.get_mods()
-                if len(self.mods) > 0:
-                    index = event.value % len(self.mods)
-                    self.load_mod(self.mods[index])
-                    return
-            #if event.ctrl == 114:
-            #    # restart opendspd
-            #    subprocess.call('/sbin/sudo /usr/bin/systemctl restart opendsp', shell=True)
-            #    return
-
-    def midi_processor(self):
-        # opendsp midi controlled via program changes and cc messages on channel 16
-        run([PortFilter(1) >> Filter(PROGRAM|CTRL) >> Call(thread=self.midi_queue)])
-
-    def start_midi(self):
-        # start mididings and a thread for midi input user control and feedback listening
-        config(backend='jack', client_name='OpenDSP', in_ports=1)
-        self.thread['midi_processor'] = threading.Thread(target=self.midi_processor,
-                                                         daemon=True,
-                                                         args=())
-        self.thread['midi_processor'].start()
-
-        # call mididings and set it realtime alog with jack - named midi
-        # from realtime standalone mididings processor get a port(16) and redirect to mididings python based
-        rules = "ChannelSplit({ 1: Channel(1) >> Port(1), 2: Channel(1) >> Port(2), 3: Channel(1) >> Port(3), 4: Channel(1) >> Port(4), 5: Channel(1) >> Port(5), 6: Channel(1) >> Port(6), 7: Channel(1) >> Port(7), 8: Channel(1) >> Port(8), 9: Channel(1) >> Port(9), 10: Channel(1) >> Port(10), 11: Channel(1) >> Port(11), 12: Channel(1) >> Port(12), 13: Channel(1) >> Port(13), 14: Channel(1) >> Port(14), 15: Channel(1) >> Port(15), 16: Channel(1) >> Port(16) })"
-        self.proc['mididings'] = subprocess.Popen(['/usr/bin/mididings',
-                                                   '-R', '-c', 'midiRT', '-o', '16', rules])
-        self.set_realtime(self.proc['mididings'].pid, 4)
-
-        # channel 16 are mean to control opendsp interface
-        self.connect_port_add('midiRT:out_16', 'OpenDSP:in_1')
-
-        # start on-board midi? (only if your hardware has onboard serial uart)
-        if 'midi' in self.config['system']:
-            self.proc['board_midi'] = subprocess.Popen(['/usr/bin/ttymidi',
-                                                        '-s', self.config['system']['midi']['device'],
-                                                        '-b', self.config['system']['midi']['baudrate']])
-            self.set_realtime(self.proc['board_midi'].pid, 4)
-            # add to state
-            self.connect_port_add('ttymidi:MIDI_in', 'midiRT:in_1')
-
-        # local midi ports to avoid auto connect
-        for app_name in self.config['app']:
-            if 'midi_output' in self.config['app'][app_name]:
-                connections = self.config['app'][app_name]['midi_output'].replace('"', '')
-                self.opendsp_devices.extend([conn.strip() for conn in connections.split(",")])
-        self.opendsp_devices.extend(['OpenDSP', 'alsa_midi:Midi Through Port-0', 'ttymidi'])
 
     def stop_display(self, display):
         if display == 'native':
@@ -485,8 +330,8 @@ class Core():
         # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
         #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo',
-                         '/sbin/chrt', '-a', '-f', '-p',
-                         str(int(self.config['system']['system']['realtime'])+inc),
+                         '/sbin/chrt', '-a', '-f',
+                         '-p', str(int(self.config['system']['system']['realtime'])+inc),
                          str(pid)])
 
     def machine_setup(self):
