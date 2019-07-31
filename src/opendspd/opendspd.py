@@ -271,36 +271,36 @@ class Core():
         # setup common SDL environment
         environment["SDL_AUDIODRIVER"] = "jack"
         environment["SDL_VIDEODRIVER"] = "x11"
-        if display == 'native':
-            environment["DISPLAY"] = ":0"
-        if display == 'virtual':
-            environment["DISPLAY"] = ":1"
-
-        # virtual display init
-        if self.display['virtual'] == False and display == 'virtual':
-            # start virtual display service
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'start', 'vdisplay'], env=environment)
-            # check if display is running before setup as...
-            while "Xvfb" not in (p.name() for p in psutil.process_iter()):
-                time.sleep(1)
-            self.display['virtual'] = True
 
         # native display init
-        if self.display['native'] == False and display == 'native':
-            # start display service
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'start', 'display'], env=environment)
-            while "Xorg" not in (p.name() for p in psutil.process_iter()):
-                time.sleep(1)
-            try:
-                # avoid screen auto shutoff
-                subprocess.run(['/usr/bin/xset', 's', 'off'], env=environment)
-                subprocess.run(['/usr/bin/xset', '-dpms'], env=environment)
-                subprocess.run(['/usr/bin/xset', 's', 'noblank'], env=environment)
-            except:
-                pass
-            self.display['native'] = True
+        if display == 'native':
+            environment["DISPLAY"] = ":0"
+            # start display service?
+            if self.display['native'] == False:
+                subprocess.run(['/sbin/sudo',
+                                '/sbin/systemctl', 'start', 'display'], env=environment)
+                while "Xorg" not in (p.name() for p in psutil.process_iter()):
+                    time.sleep(1)
+                try:
+                    # avoid screen auto shutoff
+                    subprocess.run(['/usr/bin/xset', 's', 'off'], env=environment)
+                    subprocess.run(['/usr/bin/xset', '-dpms'], env=environment)
+                    subprocess.run(['/usr/bin/xset', 's', 'noblank'], env=environment)
+                except:
+                    pass
+                self.display['native'] = True
+
+        # native display init
+        if display == 'virtual':
+            environment["DISPLAY"] = ":1"
+            # start virtual display service?
+            if self.display['virtual'] == False:
+                subprocess.run(['/sbin/sudo',
+                                '/sbin/systemctl', 'start', 'vdisplay'], env=environment)
+                # check if display is running before setup as...
+                while "Xvfb" not in (p.name() for p in psutil.process_iter()):
+                    time.sleep(1)
+                self.display['virtual'] = True
 
         if call == None:
             return None

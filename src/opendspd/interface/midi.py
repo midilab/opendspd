@@ -134,10 +134,8 @@ class MidiInterface():
 
         # CTRL messages interface
         if hasattr(event, 'ctrl'):
-            # change mod selector
+            # change selector - register last received value
             # change mod action (double press to trigger?)
-
-            # change project selector
             # change project action (double press to trigger?)
 
             if event.ctrl == 120:

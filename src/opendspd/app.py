@@ -43,29 +43,28 @@ class App:
     def start(self):
         # setup cmd call and arguments
         call = self.app['bin'].split(" ")
+        # ecosystem defined args
         if 'args' in self.app:
             call.extend(self.app['args'].split(" "))
-        if 'args' in self.config:
-            call.extend(self.config['args'].split(" "))
+        # project load parameter
         if 'project' in self.config:
+            project_arg = "<prj>"
             path_project = [path
                             for path in self.config.get('path', "").split("/")
                             if path != '']
+            project = "{data}/{path}/{project}".format(data=self.opendsp.path_data,
+                                                       path="/".join(path_project),
+                                                       project=self.config['project']).strip()
             if 'project_arg' in self.app:
-                call.append("{arg_project}"
-                            .format(arg_project=self.app['project_arg']))
-            call.append("{path_data}/{path_project}/{file_project}"
-                        .format(path_data=self.opendsp.path_data,
-                                path_project="/".join(path_project),
-                                file_project=self.config['project']).strip())
+                project_arg = self.app['project_arg']
+            call.append(project_arg.replace("<prj>", project))
+        # mod defined args
+        if 'args' in self.config:
+            call.extend(self.config['args'].split(" "))
 
         # where are we going to run this app?
         if 'display' in self.config:
-            # start the app with or without display
-            if 'native' in self.config['display']:
-                self.data['proc'] = self.opendsp.run_display('native', call)
-            elif 'virtual' in self.config['display']:
-                self.data['proc'] = self.opendsp.run_display('virtual', call)
+            self.data['proc'] = self.opendsp.run_display(self.config['display'], call)
         else:
             self.data['proc'] = self.opendsp.run_background(call)
 
