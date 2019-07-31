@@ -144,9 +144,9 @@ class Mod:
         for app in self.app:
             self.app[app].connection_reset()
 
-    def parse_config_app(self, id, config):
+    def parse_config_app(self, app_id, config):
         # parse id requests only for now...
-        return {option: config[option].replace('<id>', id)
+        return {option: config[option].replace('<id>', app_id)
                 for option in config}
 
     def parse_conn(self, conn_string):
