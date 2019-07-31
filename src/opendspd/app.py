@@ -36,7 +36,7 @@ class App:
         # disconnect all jack ports
         self.opendsp.jackd.disconnect(self.connections)
         # kill the app process and clear object state
-        self.data['proc'].terminate()
+        self.opendsp.stop_proc(self.data['proc'])
         del self.data
         self.data = {}
 
@@ -65,9 +65,9 @@ class App:
 
         # where are we going to run this app?
         if 'display' in self.config:
-            self.data['proc'] = self.opendsp.run_display(self.config['display'], call)
+            self.data['proc'] = self.opendsp.start_proc(call, self.config['display'])
         else:
-            self.data['proc'] = self.opendsp.run_background(call)
+            self.data['proc'] = self.opendsp.start_proc(call)
 
         # set limits?
         if 'limits' in self.app:

@@ -66,7 +66,11 @@ class MidiInterface():
         del self.midi_out
         # stop all procs
         for proc in self.proc:
-            self.proc[proc].terminate()
+            self.opendsp.stop_proc(self.proc[proc])
+        del self.proc
+        self.proc = {}
+        # stop threads
+        #...
 
     def start(self):
         # start mididings and a thread for midi input user control and feedback listening
@@ -81,8 +85,8 @@ class MidiInterface():
         rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
 
         # call mididings and set it realtime alog with jack - named midi
-        self.proc['mididings'] = self.opendsp.run_background(['/usr/bin/mididings',
-                                                              '-R', '-c', 'midiRT', '-o', '16', rules])
+        self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
+                                                          '-R', '-c', 'midiRT', '-o', '16', rules])
 
         # set it +4 for realtime priority
         self.opendsp.set_realtime(self.proc['mididings'].pid, 4)
@@ -100,9 +104,9 @@ class MidiInterface():
         # start on-board midi? (only if your hardware has onboard serial uart)
         if 'midi' in self.opendsp.config['system']:
             # run on background
-            self.proc['onboard'] = self.opendsp.run_background(['/usr/bin/ttymidi',
-                                                                '-s', self.opendsp.config['system']['midi']['device'],
-                                                                '-b', self.opendsp.config['system']['midi']['baudrate']])
+            self.proc['onboard'] = self.opendsp.start_proc(['/usr/bin/ttymidi',
+                                                            '-s', self.opendsp.config['system']['midi']['device'],
+                                                            '-b', self.opendsp.config['system']['midi']['baudrate']])
             # set it +4 for realtime priority
             self.opendsp.set_realtime(self.proc['onboard'].pid, 4)
 

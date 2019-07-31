@@ -179,8 +179,8 @@ class Core():
             # update our running data file
             self.update_run_data()
         except Exception as e:
-            logging.error("error loading mod {name}: {message}"
-                          .format(name=name, message=str(e)))
+            logging.exception("error loading mod {name}: {message}"
+                              .format(name=name, message=str(e)))
 
     def health_check(self):
         pass
@@ -253,66 +253,79 @@ class Core():
             if display in display_stop:
                 self.stop_display(display)
             elif display in display_mod and display not in display_run:
-                self.run_display(display)
+                self.start_display(display)
 
-    def stop_display(self, display):
+    def stop_display(self, display='native'):
         if display == 'native':
             # stop native display service
-            subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'stop', 'display'])
+            subprocess.run(['/sbin/sudo',
+                            '/sbin/systemctl', 'stop', 'display'])
             self.display['native'] = False
 
         if display == 'virtual':
             # stop virtual display service
-            subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'stop', 'vdisplay'])
+            subprocess.run(['/sbin/sudo',
+                            '/sbin/systemctl', 'stop', 'vdisplay'])
             self.display['virtual'] = False
 
-    def run_display(self, display='native', call=None):
-        environment = os.environ.copy()
-        # setup common SDL environment
-        environment["SDL_AUDIODRIVER"] = "jack"
-        environment["SDL_VIDEODRIVER"] = "x11"
-
+    def start_display(self, display='native'):
         # native display init
         if display == 'native':
+            subprocess.run(['/sbin/sudo',
+                            '/sbin/systemctl', 'start', 'display'])
+            # wait display to get up...
+            while "Xorg" not in (p.name() for p in psutil.process_iter()):
+                time.sleep(1)
+            try:
+                # avoid screen auto shutoff
+                subprocess.run(['/usr/bin/xset', 's', 'off'])
+                subprocess.run(['/usr/bin/xset', '-dpms'])
+                subprocess.run(['/usr/bin/xset', 's', 'noblank'])
+            except:
+                pass
+            self.display['native'] = True
+
+        # virtual display init
+        if display == 'virtual':
+            subprocess.run(['/sbin/sudo',
+                            '/sbin/systemctl', 'start', 'vdisplay'])
+            # wait virtual display to get up...
+            while "Xvfb" not in (p.name() for p in psutil.process_iter()):
+                time.sleep(1)
+            self.display['virtual'] = True
+
+    def start_proc(self, call, env=None):
+        # yes we need environment vars!
+        environment = os.environ.copy()
+
+        if env is not None:
+            # setup common SDL environment
+            environment["SDL_AUDIODRIVER"] = "jack"
+            environment["SDL_VIDEODRIVER"] = "x11"
+
+        # native display run env request?
+        if env == 'native':
             environment["DISPLAY"] = ":0"
             # start display service?
             if self.display['native'] == False:
-                subprocess.run(['/sbin/sudo',
-                                '/sbin/systemctl', 'start', 'display'], env=environment)
-                while "Xorg" not in (p.name() for p in psutil.process_iter()):
-                    time.sleep(1)
-                try:
-                    # avoid screen auto shutoff
-                    subprocess.run(['/usr/bin/xset', 's', 'off'], env=environment)
-                    subprocess.run(['/usr/bin/xset', '-dpms'], env=environment)
-                    subprocess.run(['/usr/bin/xset', 's', 'noblank'], env=environment)
-                except:
-                    pass
-                self.display['native'] = True
+                self.start_display('native')
 
-        # native display init
-        if display == 'virtual':
+        # virtual display run env request?
+        if env == 'virtual':
             environment["DISPLAY"] = ":1"
             # start virtual display service?
             if self.display['virtual'] == False:
-                subprocess.run(['/sbin/sudo',
-                                '/sbin/systemctl', 'start', 'vdisplay'], env=environment)
-                # check if display is running before setup as...
-                while "Xvfb" not in (p.name() for p in psutil.process_iter()):
-                    time.sleep(1)
-                self.display['virtual'] = True
+                self.start_display('virtual')
 
-        if call == None:
-            return None
-        # start virtual display app
-        logging.info("starting app on display: {display} via cmd: {call}".format(display=display,
-                                                                                 call=" ".join(call)))
-        return subprocess.Popen(call, env=environment)
+        # starting proc
+        logging.info("starting proccess on env: {env} via cmd: {call}".format(env=env,
+                                                                              call=" ".join(call)))
+        return subprocess.Popen(call, env=environment, preexec_fn=os.setsid)
 
-    def run_background(self, call):
-        environment = os.environ.copy()
-        logging.info("starting app via cmd: {call}".format(call=" ".join(call)))
-        return subprocess.Popen(call, env=environment)
+    def stop_proc(self, proc):
+        #p=subprocess.Popen(your_command, preexec_fn=os.setsid, shell=True)
+        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+        #proc.terminate()
 
     def call(self, call, env=False):
         environment = os.environ.copy() if env == True else None

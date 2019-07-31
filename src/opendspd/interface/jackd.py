@@ -33,20 +33,20 @@ class JackdInterface():
     def stop(self):
         # stop all process
         for proc in self.proc:
-            self.proc[proc].terminate()
+            self.opendsp.stop_proc(self.proc[proc])
         # reset proc
         del self.proc
         self.proc = {}
 
     def start(self):
         # start jack server
-        self.proc['jackd'] = self.opendsp.run_background(['/usr/bin/jackd',
-                                                          '-R', '-t10000', '-dalsa',
-                                                          '-d', self.config['hardware'],
-                                                          '-r', self.config['rate'],
-                                                          '-p', self.config['buffer'],
-                                                          '-n', self.config['period'],
-                                                          '-Xseq'])
+        self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
+                                                      '-R', '-t10000', '-dalsa',
+                                                      '-d', self.config['hardware'],
+                                                      '-r', self.config['rate'],
+                                                      '-p', self.config['buffer'],
+                                                      '-n', self.config['period'],
+                                                      '-Xseq'])
 
         # set it +4 for realtime priority
         self.opendsp.set_realtime(self.proc['jackd'].pid, 4)
