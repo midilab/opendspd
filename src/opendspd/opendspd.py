@@ -323,9 +323,8 @@ class Core():
         return subprocess.Popen(call, env=environment, preexec_fn=os.setsid)
 
     def stop_proc(self, proc):
-        #p=subprocess.Popen(your_command, preexec_fn=os.setsid, shell=True)
         os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
-        #proc.terminate()
+        proc.terminate()
 
     def call(self, call, env=False):
         environment = os.environ.copy() if env == True else None
