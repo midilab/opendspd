@@ -305,10 +305,13 @@ class Core():
         if call == None:
             return None
         # start virtual display app
+        logging.info("starting app on display: {display} via cmd: {call}".format(display=display,
+                                                                                 call=" ".join(call)))
         return subprocess.Popen(call, env=environment)
 
     def run_background(self, call):
         environment = os.environ.copy()
+        logging.info("starting app via cmd: {call}".format(call=" ".join(call)))
         return subprocess.Popen(call, env=environment)
 
     def call(self, call, env=False):

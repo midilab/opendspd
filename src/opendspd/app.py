@@ -57,7 +57,8 @@ class App:
                                                        project=self.config['project']).strip()
             if 'project_arg' in self.app:
                 project_arg = self.app['project_arg']
-            call.append(project_arg.replace("<prj>", project))
+            call.extend([prj.replace("<prj>", project)
+                         for prj in project_arg.split(" ")])
         # mod defined args
         if 'args' in self.config:
             call.extend(self.config['args'].split(" "))
