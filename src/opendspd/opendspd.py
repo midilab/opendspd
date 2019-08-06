@@ -61,7 +61,7 @@ class Core():
         # configparser objects, system, ecosystem and mod
         self.config = {}
         self.config['system'] = configparser.ConfigParser()
-        self.config['app'] = configparser.ConfigParser()
+        self.config['ecosystem'] = configparser.ConfigParser()
         self.config['mod'] = None
         # state attributes
         self.path_data = path_data
@@ -163,7 +163,7 @@ class Core():
             # read our cfg file into memory
             del self.config['mod']
             self.config['mod'] = configparser.ConfigParser()
-            self.config['mod'].read("{path_data}/mod/{name_mod}.cfg"
+            self.config['mod'].read("{path_data}/mod/{name_mod}/mod.cfg"
                                     .format(path_data=self.path_data,
                                             name_mod=name))
 
@@ -171,7 +171,7 @@ class Core():
             self.manage_display(self.config['mod'])
 
             # instantiate Mod object
-            self.mod = mod.Mod(self.config['mod'], self.config['app'], self)
+            self.mod = mod.Mod(name, self.config['mod'], self.config['ecosystem'], self)
 
             # get mod application ecosystem up and running
             self.mod.start()
@@ -191,7 +191,7 @@ class Core():
     def load_config(self):
         try:
             # read apps definitions
-            self.config['app'].read("{path_data}/mod/app/ecosystem.cfg"
+            self.config['ecosystem'].read("{path_data}/mod/ecosystem.cfg"
                                     .format(path_data=self.path_data))
 
             # loading general system config
@@ -216,7 +216,7 @@ class Core():
                 self.config['system']['mod']['name'] = "blank"
             if 'osc' not in self.config['system']:
                 self.config['system']['osc'] = {}
-                self.config['system']['osc']['port'] = '1234'
+                self.config['system']['osc']['port'] = '8000'
         except Exception as e:
             logging.error("error trying to load opendsp config file: {message}"
                           .format(message=e))
@@ -375,12 +375,12 @@ class Core():
                 data.append("{name}\n"
                             .format(name=name_mod))
                 data.append("{project_path}\n"
-                            .format(project_path=self.config['mod']['app1'].get('path', '')))
+                            .format(project_path=self.mod.path_project))
                 data.append("{project}\n"
                             .format(project=self.config['mod']['app1'].get('project', '')))
-                if name_mod in self.config['app']:
+                if name_mod in self.config['ecosystem']:
                     data.append("{project_extension}\n"
-                                .format(project_extension=self.config['app'][name_mod].get('extension', '')))
+                                .format(project_extension=self.config['ecosystem'][name_mod].get('extension', '')))
         try:
             with open("/var/tmp/opendsp-run-data", "w+") as run_data:
                 run_data.writelines(data)

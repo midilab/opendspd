@@ -20,12 +20,12 @@ import sys
 import glob
 
 if __name__ == '__main__':
-    
+
     try:
         # read actual mod loaded data
         with open("/var/tmp/opendsp-run-data", "r") as mod_setup:
             data_mod = mod_setup.readlines()
-    except: 
+    except:
         print("<openbox_pipe_menu><item label=\"opendsp not running, please start it first...\" /></openbox_pipe_menu>")
         exit()
 
@@ -37,8 +37,9 @@ if __name__ == '__main__':
     #...
     path_data = data_mod[0].replace('\n', '')
 
-    # read all avaliable mods, we sort glob here to make use of user numbered mods - usefull for MIDI requests
-    avaliable_mods = [ os.path.basename(path_mod)[:-4] for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg".format(path_data=path_data))) ]
+    # sorted list of diretories inside mod path
+    avaliable_mods = sorted(next(os.walk("{path_data}/mod/"
+                                         .format(path_data=path_data)))[1])
 
     # make me a menu please
     menu = "<openbox_pipe_menu>"

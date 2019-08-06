@@ -19,12 +19,12 @@ import os
 import glob
 
 if __name__ == '__main__':
-    
+
     try:
         # read actual mod loaded data
         with open("/var/tmp/opendsp-run-data", "r") as mod_setup:
             data_mod = mod_setup.readlines()
-    except: 
+    except:
         print("<openbox_pipe_menu><item label=\"opendsp not running, please start it first...\" /></openbox_pipe_menu>")
         exit()
 
@@ -35,7 +35,7 @@ if __name__ == '__main__':
     if len(data_mod[2].strip()) == 0:
         print("<openbox_pipe_menu><item label=\"no project path setup\" /></openbox_pipe_menu>")
         exit()
-    
+
     #opendsp_user_data_path
     #mod_name
     #mod_project_path
@@ -49,14 +49,14 @@ if __name__ == '__main__':
     if len(data_mod) > 4:
         extension = data_mod[4].replace('\n', '')
 
-    dir_list = glob.glob("{path_data}/{path_project}/*{extension}".format(path_data=path_data, path_project=path_project, extension=extension))
+    dir_list = glob.glob("{path_project}/*{extension}".format(path_project=path_project, extension=extension))
     project_list = [ os.path.basename(path_project) for path_project in sorted(dir_list) ]
 
     # make me a menu please
     menu = "<openbox_pipe_menu>"
-    for index, project in enumerate(project_list,1):
-        menu += "<item label=\"{id}: {name_mod}\">".format(id=index, name_mod=project)
-        menu += "<action name=\"Execute\"><command>send_midi -J midiRT:in_1 PROGRAM,16,{}</command></action>".format(index)
+    for idx, project in enumerate(project_list,1):
+        menu += "<item label=\"{id}: {name_mod}\">".format(id=idx, name_mod=project)
+        menu += "<action name=\"Execute\"><command>send_midi -J midiRT:in_1 PROGRAM,16,{}</command></action>".format(idx)
         menu += "</item>"
     menu += "</openbox_pipe_menu>"
 

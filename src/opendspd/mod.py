@@ -26,19 +26,22 @@ from . import app
 
 class Mod:
 
-    def __init__(self, config_mod, config_app, opendsp):
+    def __init__(self, name_mod, config_mod, ecosystem, opendsp):
         # OpenDSP Core instance
         self.opendsp = opendsp
-        # config_mod is a modular collection configuration of config_app
+        self.name = name_mod
+        # config_mod is a modular collection configuration of ecosystem
         self.config = config_mod
-        # config_app are all the applications avaliable to load into mod
-        self.config_app = config_app
+        # ecosystem are all the applications avaliable to load into mod
+        self.ecosystem = ecosystem
         # App objects map
         self.app = {}
         # the main app
         self.main_app = None
         # used to setup config['project'] requests that deals with subdirs
+        self.path = "/".join([self.opendsp.path_data, 'mod', name_mod])
         self.path_project = ""
+        self.ext_project = ""
         # running state
         self.running = False
         # running thread
@@ -59,20 +62,22 @@ class Mod:
         for app_id in apps:
             config = apps[app_id]
             name_app = config.get('name')
-            if name_app in self.config_app:
+            if name_app in self.ecosystem:
                 # parse config app
-                config_app = self.parse_config_app(app_id, self.config_app[name_app])
+                config_app = self.parse_config_app(app_id, self.ecosystem[name_app])
                 # app1 is used as main_app reference for project change requests
                 if app_id == 'app1':
                     # this is the one used to handle projects on requests
                     self.main_app = app_id
                     if 'path' in config:
-                        # get the project path for subdir support on user side
-                        self.path_project = config['path']
+                        # project path is relative to mod directory
+                        self.path_project = "/".join([self.path, config['path']])
+                    if 'extension' in self.ecosystem[name_app]:
+                        self.ext_project = self.ecosystem[name_app]['extension']
                 # generate our list of pair ports connection representation between apps
                 connections = self.gen_conn(app_id, config, config_app)
                 # instantiate App object and keep track of it on app map
-                self.app[app_id] = app.App(config, config_app, connections, self.opendsp)
+                self.app[app_id] = app.App(config, config_app, connections, self.path, self.opendsp)
                 self.app[app_id].start()
 
         # thread the run method until we're dead
@@ -101,9 +106,9 @@ class Mod:
     def get_projects(self):
         # only read project directory if we have a main app setup
         if self.main_app in self.app:
-            dir_list = glob.glob("{path_data}/{path_project}/*"
-                                 .format(path_data=self.opendsp.path_data,
-                                         path_project=self.path_project))
+            dir_list = glob.glob("{path_project}/*{extension}"
+                                 .format(path_project=self.path_project,
+                                         extension=self.ext_project))
             return [os.path.basename(path_project)
                     for path_project in sorted(dir_list)]
         else:
@@ -120,10 +125,9 @@ class Mod:
             return None
 
     def get_mods(self):
-        return [os.path.basename(path_mod)[:-4]
-                for path_mod in sorted(glob.glob("{path_data}/mod/*.cfg"
-                                                 .format(path_data=self.opendsp.path_data)))
-                if os.path.basename(path_mod)[:-4] != 'app']
+        # sorted list of installed mods inside mod path
+        return sorted(next(os.walk("{path_data}/mod/"
+                                   .format(path_data=self.opendsp.path_data)))[1])
 
     def get_mod_by_idx(self, idx):
         mods = self.get_mods()
@@ -192,8 +196,8 @@ class Mod:
                     continue
 
                 try:
-                    conn['origin'] = self.parse_conn(self.config_app[name_app][port_type])[index]
-                    conn['dest'] = self.parse_conn(self.config_app[name_dest][port_type_dest])[index_dest]
+                    conn['origin'] = self.parse_conn(self.ecosystem[name_app][port_type])[index]
+                    conn['dest'] = self.parse_conn(self.ecosystem[name_dest][port_type_dest])[index_dest]
                 except Exception as e:
                     logging.error("error, not enough data to generate port pairs: {message}"
                                   .format(message=str(e)))

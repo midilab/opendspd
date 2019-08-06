@@ -114,17 +114,17 @@ class MidiInterface():
             self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
 
         # local midi ports to avoid auto connect
-        for app_name in self.opendsp.config['app']:
-            if 'midi_output' in self.opendsp.config['app'][app_name]:
-                connections = self.opendsp.config['app'][app_name]['midi_output'].replace('"', '')
+        for app_name in self.opendsp.config['ecosystem']:
+            if 'midi_output' in self.opendsp.config['ecosystem'][app_name]:
+                connections = self.opendsp.config['ecosystem'][app_name]['midi_output'].replace('"', '')
                 self.blacklist.extend([conn.strip() for conn in connections.split(",")])
 
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:
             status = (self.midi_cmd[cmd] & 0xf0) | ((channel-1) & 0xf0)
             message = (status, data1, data2)
-            logging.debug("sending midi message {cmd}: {message}".format(cmd=cmd,
-                                                                         message=message))
+            logging.debug("sending midi message {cmd}: {message}"
+                          .format(cmd=cmd, message=message))
             self.midi_out.send_message(message)
 
     def midi_queue(self, event):

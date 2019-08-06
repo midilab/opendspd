@@ -19,7 +19,7 @@ import logging
 
 class App:
 
-    def __init__(self, config, app, connections, opendsp):
+    def __init__(self, config, app, connections, path_data, opendsp):
         # OpenDSP Core instance
         self.opendsp = opendsp
         # config are all the user setup inside [appX]
@@ -28,6 +28,7 @@ class App:
         self.app = app
         # running state memory
         self.data = {}
+        self.path_data = path_data
         # the state connections keeped by this app
         self.connections = connections
         self.connections_pending = connections
@@ -52,7 +53,7 @@ class App:
             path_project = [path
                             for path in self.config.get('path', "").split("/")
                             if path != '']
-            project = "{data}/{path}/{project}".format(data=self.opendsp.path_data,
+            project = "{data}/{path}/{project}".format(data=self.path_data,
                                                        path="/".join(path_project),
                                                        project=self.config['project']).strip()
             if 'project_arg' in self.app:
