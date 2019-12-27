@@ -73,6 +73,10 @@ class App:
         # set limits?
         if 'limits' in self.app:
             self.opendsp.set_limits(self.data['proc'].pid, self.app['limits'])
+        
+        # set cpu affinity?
+        if 'cpu' in self.config:
+            self.opendsp.set_cpu(self.data['proc'].pid, str(self.config['cpu']))
 
         # set realtime priority?
         if 'realtime' in self.app:

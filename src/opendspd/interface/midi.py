@@ -88,6 +88,9 @@ class MidiInterface():
         self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
                                                           '-R', '-c', 'midiRT', '-o', '16', rules])
 
+        # set cpu afinnity
+        self.opendsp.set_cpu(self.proc['mididings'].pid, self.opendsp.config['system']['system']['cpu'])
+
         # set it +4 for realtime priority
         self.opendsp.set_realtime(self.proc['mididings'].pid, 4)
 
@@ -107,6 +110,10 @@ class MidiInterface():
             self.proc['onboard'] = self.opendsp.start_proc(['/usr/bin/ttymidi',
                                                             '-s', self.opendsp.config['system']['midi']['device'],
                                                             '-b', self.opendsp.config['system']['midi']['baudrate']])
+            
+            # set cpu afinnity
+            self.opendsp.set_cpu(self.proc['onboard'].pid, self.opendsp.config['system']['system']['cpu'])
+
             # set it +4 for realtime priority
             self.opendsp.set_realtime(self.proc['onboard'].pid, 4)
 

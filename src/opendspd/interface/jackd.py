@@ -27,6 +27,7 @@ class JackdInterface():
     def __init__(self, opendsp):
         self.opendsp = opendsp
         self.config = opendsp.config['system']['audio']
+        self.sys_config = opendsp.config['system']['system']
         self.client = None
         self.proc = {}
 
@@ -47,6 +48,9 @@ class JackdInterface():
                                                       '-p', self.config['buffer'],
                                                       '-n', self.config['period'],
                                                       '-Xseq'])
+        
+        # set cpu afinnity? 
+        self.opendsp.set_cpu(self.proc['jackd'].pid, self.sys_config['cpu'])
 
         # set it +4 for realtime priority
         self.opendsp.set_realtime(self.proc['jackd'].pid, 4)

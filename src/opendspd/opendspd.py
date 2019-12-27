@@ -167,6 +167,32 @@ class Core():
                                     .format(path_data=self.path_data,
                                             name_mod=name))
 
+            # any audio config changes?
+            if 'audio' in self.config['mod']:
+                reload_subsystem = False
+                if 'rate' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['rate'] != self.config['mod']['audio']['rate']:
+                        self.config['system']['audio']['rate'] = self.config['mod']['audio']['rate']
+                        reload_subsystem = True
+                if 'period' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['period'] != self.config['mod']['audio']['period']:
+                        self.config['system']['audio']['period'] = self.config['mod']['audio']['period']
+                        reload_subsystem = True
+                if 'buffer' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['buffer'] != self.config['mod']['audio']['buffer']:
+                        self.config['system']['audio']['buffer'] = self.config['mod']['audio']['buffer']
+                        reload_subsystem = True
+                if 'hardware' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['hardware'] != self.config['mod']['audio']['hardware']:
+                        self.config['system']['audio']['hardware'] = self.config['mod']['audio']['hardware']
+                        reload_subsystem = True
+                if reload_subsystem:
+                    # restart jackd audio subsystem and friends with new configuration
+                    self.midi.stop()
+                    self.jackd.stop()
+                    self.jackd.start()
+                    self.midi.start()
+
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])
 
@@ -209,8 +235,8 @@ class Core():
                 self.config['system']['audio']['hardware'] = 'hw:0,0'
             if 'system' not in self.config['system']:
                 self.config['system']['system'] = {}
-                self.config['system']['system']['usage'] = '75'
-                self.config['system']['system']['realtime'] = '95'
+                self.config['system']['system']['cpu'] = '0'
+                self.config['system']['system']['realtime'] = '40'
             if 'mod' not in self.config['system']:
                 self.config['system']['mod'] = {}
                 self.config['system']['mod']['name'] = "blank"
@@ -334,18 +360,11 @@ class Core():
         subprocess.call(['/sbin/sudo',
                          '/sbin/prlimit', '--pid', str(pid), limits])
 
+    def set_cpu(self, pid, cpu):
+        # set process cpu afinity
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
+
     def set_realtime(self, pid, inc=0):
-        # the idea is: use 25% of cpu for OS tasks and the rest for opendsp
-        # nproc --all
-        # self.config['system']['usage'])
-        #num_proc = int(subprocess.check_output(['/bin/nproc', '--all']))
-        #usable_procs = ""
-        #for i in range(num_proc):
-        #    if ((i+1)/num_proc) > 0.25:
-        #        usable_procs = usable_procs + "," + str(i)
-        #usable_procs = usable_procs[1:]
-        # the first cpu's are the one allocated for main OS tasks, lets set afinity for other cpu's
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', usable_procs, str(pid)], shell=False)
         subprocess.call(['/sbin/sudo',
                          '/sbin/chrt', '-a', '-f',
                          '-p', str(int(self.config['system']['system']['realtime'])+inc),
