@@ -108,7 +108,6 @@ class Core():
         # interfaces
         logging.info('Initing Jackd Interface')
         self.jackd = JackdInterface(self)
-        self.jackd.start()
 
         logging.info('Initing OSC Interface')
         self.osc = OscInterface(self)
@@ -116,7 +115,6 @@ class Core():
 
         logging.info('Initing MIDI Interface')
         self.midi = MidiInterface(self)
-        self.midi.start()
 
         logging.info('OpenDSP init completed!')
 
@@ -186,12 +184,17 @@ class Core():
                     if self.config['system']['audio']['hardware'] != self.config['mod']['audio']['hardware']:
                         self.config['system']['audio']['hardware'] = self.config['mod']['audio']['hardware']
                         reload_subsystem = True
-                if reload_subsystem:
+                if reload_subsystem and self.jackd.running:
                     # restart jackd audio subsystem and friends with new configuration
                     self.midi.stop()
                     self.jackd.stop()
-                    self.jackd.start()
-                    self.midi.start()
+
+            # start audio and midi subsystem
+            if not self.jackd.running:
+                self.jackd.start()
+                # wait a while for jackd midi subsystem...
+                time.sleep(5)
+                self.midi.start()
 
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])

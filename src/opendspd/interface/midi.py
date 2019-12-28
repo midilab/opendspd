@@ -57,6 +57,8 @@ class MidiInterface():
         # all procs and threads references managed by opendsp
         self.proc = {}
         self.thread = {}
+        # running state
+        self.running = False
 
     def stop(self):
         # disconnect all ports
@@ -71,6 +73,8 @@ class MidiInterface():
         self.proc = {}
         # stop threads
         #...
+        # set running state
+        self.running = False
 
     def start(self):
         # start mididings and a thread for midi input user control and feedback listening
@@ -126,6 +130,9 @@ class MidiInterface():
                 connections = self.opendsp.config['ecosystem'][app_name]['midi_output'].replace('"', '')
                 self.blacklist.extend([conn.strip() for conn in connections.split(",")])
 
+        # set running state
+        self.running = True
+
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:
             status = (self.midi_cmd[cmd] & 0xf0) | ((channel-1) & 0xf0)
@@ -168,8 +175,11 @@ class MidiInterface():
         """Midi handler
         called by core on each run cycle
         """
-        self.lookup()
-        self.connections_pending = self.opendsp.jackd.connect(self.connections_pending)
+        try:
+            self.lookup()
+            self.connections_pending = self.opendsp.jackd.connect(self.connections_pending)
+        except Exception as e:
+            logging.error("error on midi handle process: {}".format(e))
 
     def lookup(self):
         """Hid Lookup
