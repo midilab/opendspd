@@ -30,7 +30,6 @@ class JackdInterface():
         self.sys_config = opendsp.config['system']['system']
         self.client = None
         self.proc = {}
-        self.running = False
 
     def stop(self):
         # stop all process
@@ -39,8 +38,6 @@ class JackdInterface():
         # reset proc
         del self.proc
         self.proc = {}
-        # set running state
-        self.running = False
 
     def start(self):
         # start jack server
@@ -62,9 +59,6 @@ class JackdInterface():
         # start jack client
         self.client = jack.Client('opendsp_jack')
         self.client.activate()
-
-        # set running state
-        self.running = True
 
     def connect(self, connections_pending):
         connections_made = []

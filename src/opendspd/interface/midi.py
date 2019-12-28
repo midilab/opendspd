@@ -57,8 +57,6 @@ class MidiInterface():
         # all procs and threads references managed by opendsp
         self.proc = {}
         self.thread = {}
-        # running state
-        self.running = False
 
     def stop(self):
         # disconnect all ports
@@ -73,8 +71,6 @@ class MidiInterface():
         self.proc = {}
         # stop threads
         #...
-        # set running state
-        self.running = False
 
     def start(self):
         # start mididings and a thread for midi input user control and feedback listening
@@ -129,9 +125,6 @@ class MidiInterface():
             if 'midi_output' in self.opendsp.config['ecosystem'][app_name]:
                 connections = self.opendsp.config['ecosystem'][app_name]['midi_output'].replace('"', '')
                 self.blacklist.extend([conn.strip() for conn in connections.split(",")])
-
-        # set running state
-        self.running = True
 
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:

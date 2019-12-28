@@ -108,13 +108,15 @@ class Core():
         # interfaces
         logging.info('Initing Jackd Interface')
         self.jackd = JackdInterface(self)
-
+        self.jackd.start()
+                
         logging.info('Initing OSC Interface')
         self.osc = OscInterface(self)
         self.osc.start()
 
         logging.info('Initing MIDI Interface')
         self.midi = MidiInterface(self)
+        self.midi.start()
 
         logging.info('OpenDSP init completed!')
 
@@ -164,37 +166,6 @@ class Core():
             self.config['mod'].read("{path_data}/mod/{name_mod}/mod.cfg"
                                     .format(path_data=self.path_data,
                                             name_mod=name))
-
-            # any audio config changes?
-            if 'audio' in self.config['mod']:
-                reload_subsystem = False
-                if 'rate' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['rate'] != self.config['mod']['audio']['rate']:
-                        self.config['system']['audio']['rate'] = self.config['mod']['audio']['rate']
-                        reload_subsystem = True
-                if 'period' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['period'] != self.config['mod']['audio']['period']:
-                        self.config['system']['audio']['period'] = self.config['mod']['audio']['period']
-                        reload_subsystem = True
-                if 'buffer' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['buffer'] != self.config['mod']['audio']['buffer']:
-                        self.config['system']['audio']['buffer'] = self.config['mod']['audio']['buffer']
-                        reload_subsystem = True
-                if 'hardware' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['hardware'] != self.config['mod']['audio']['hardware']:
-                        self.config['system']['audio']['hardware'] = self.config['mod']['audio']['hardware']
-                        reload_subsystem = True
-                if reload_subsystem and self.jackd.running:
-                    # restart jackd audio subsystem and friends with new configuration
-                    self.midi.stop()
-                    self.jackd.stop()
-
-            # start audio and midi subsystem
-            if not self.jackd.running:
-                self.jackd.start()
-                # wait a while for jackd midi subsystem...
-                time.sleep(5)
-                self.midi.start()
 
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])
@@ -365,7 +336,8 @@ class Core():
 
     def set_cpu(self, pid, cpu):
         # set process cpu afinity
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
+        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
+        pass
 
     def set_realtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo',
