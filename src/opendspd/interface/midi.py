@@ -56,6 +56,7 @@ class MidiInterface():
                          'program_change': 0xC0}
         # all procs and threads references managed by opendsp
         self.proc = {}
+        self.devices = {}
         self.thread = {}
 
     def stop(self):
@@ -69,6 +70,11 @@ class MidiInterface():
             self.opendsp.stop_proc(self.proc[proc])
         del self.proc
         self.proc = {}
+        # stop all midi devices
+        for device in self.devices:
+            self.opendsp.stop_proc(self.devices[device])
+        del self.devices
+        self.devices = {}
         # stop threads
         #...
 
@@ -89,10 +95,11 @@ class MidiInterface():
                                                           '-R', '-c', 'midiRT', '-o', '16', rules])
 
         # set cpu afinnity
-        self.opendsp.set_cpu(self.proc['mididings'].pid, self.opendsp.config['system']['system']['cpu'])
-
+        if 'cpu' in self.opendsp.config['system']['system']:
+            self.opendsp.set_cpu(self.proc['mididings'].pid, self.opendsp.config['system']['system']['cpu'])
         # set it +4 for realtime priority
-        self.opendsp.set_realtime(self.proc['mididings'].pid, 4)
+        if 'realtime' in self.opendsp.config['system']['system']:
+            self.opendsp.set_realtime(self.proc['mididings'].pid, 4)
 
         # channel 16 are mean to control opendsp interface
         self.port_add('midiRT:out_16', 'OpenDSP:in_1')
@@ -112,10 +119,11 @@ class MidiInterface():
                                                             '-b', self.opendsp.config['system']['midi']['baudrate']])
             
             # set cpu afinnity
-            self.opendsp.set_cpu(self.proc['onboard'].pid, self.opendsp.config['system']['system']['cpu'])
-
+            if 'cpu' in self.opendsp.config['system']['system']:
+                self.opendsp.set_cpu(self.proc['onboard'].pid, self.opendsp.config['system']['system']['cpu'])
             # set it +4 for realtime priority
-            self.opendsp.set_realtime(self.proc['onboard'].pid, 4)
+            if 'realtime' in self.opendsp.config['system']['system']:
+                self.opendsp.set_realtime(self.proc['onboard'].pid, 4)
 
             # add to state
             self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
@@ -179,6 +187,20 @@ class MidiInterface():
         take cares of user on the fly
         hid devices connections
         """
+        # to use jamrouter we need to disable -Xseq on jackd
+        #new_devices = [device for device in glob.glob("/dev/midi*") if device not in self.devices]
+        # get new devices up and running
+        #for device in new_devices:
+        #    priority = int(self.opendsp.config['system']['system']['realtime'])+4
+            # search for midi devices
+        #    self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority)])
+            # set cpu afinnity
+        #    if 'cpu' in self.opendsp.config['system']['system']:
+        #        self.opendsp.set_cpu(self.devices[device].pid, self.opendsp.config['system']['system']['cpu'])
+            # set it +4 for realtime priority
+        #    if 'realtime' in self.opendsp.config['system']['system']:
+        #        self.opendsp.set_realtime(self.devices[device].pid, 4)
+
         jack_midi_lsp = [data.name
                          for data in self.opendsp.jackd.client.get_ports(is_midi=True, is_output=True)
                          if all(port.replace("\\", "") not in data.name for port in self.blacklist)]

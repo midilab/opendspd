@@ -79,7 +79,7 @@ class App:
             self.opendsp.set_cpu(self.data['proc'].pid, str(self.config['cpu']))
 
         # set realtime priority?
-        if 'realtime' in self.app:
+        if 'realtime' in self.app and 'realtime' in self.opendsp.config['system']['system']:
             self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))
 
         # generate a list from, parsed by ','

@@ -47,14 +47,15 @@ class JackdInterface():
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
                                                       '-n', self.config['period'],
-                                                      '-S',
-                                                      '-Xseq'])
+                                                      '-Xseq',
+                                                      '-S'])
         
         # set cpu afinnity? 
-        self.opendsp.set_cpu(self.proc['jackd'].pid, self.sys_config['cpu'])
-
-        # set it +4 for realtime priority
-        self.opendsp.set_realtime(self.proc['jackd'].pid, 4)
+        if 'cpu' in self.sys_config:
+            self.opendsp.set_cpu(self.proc['jackd'].pid, self.sys_config['cpu'])
+        # set it +8 for realtime priority
+        if 'realtime' in self.sys_config:
+            self.opendsp.set_realtime(self.proc['jackd'].pid, 8)
 
         # start jack client
         self.client = jack.Client('opendsp_jack')

@@ -124,11 +124,11 @@ class Core():
         # script call for machine specific setup/tunning
         self.machine_setup()
 
+        # setup running state
+        self.running = True
+
         # load mod
         self.load_mod(self.config['system']['mod']['name'])
-
-        # start running state
-        self.running = True
 
         logging.info('OpenDSP up and running!')
 
@@ -167,6 +167,38 @@ class Core():
                                     .format(path_data=self.path_data,
                                             name_mod=name))
 
+            # update sysconfig mod name reference and save it back to config file
+            self.config['system']['mod']['name'] = name
+
+            # any audio config changes?
+            if 'audio' in self.config['mod']:
+                reload_subsystem = False
+                if 'rate' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['rate'] != self.config['mod']['audio']['rate']:
+                        self.config['system']['audio']['rate'] = self.config['mod']['audio']['rate']
+                        reload_subsystem = True
+                if 'period' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['period'] != self.config['mod']['audio']['period']:
+                        self.config['system']['audio']['period'] = self.config['mod']['audio']['period']
+                        reload_subsystem = True
+                if 'buffer' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['buffer'] != self.config['mod']['audio']['buffer']:
+                        self.config['system']['audio']['buffer'] = self.config['mod']['audio']['buffer']
+                        reload_subsystem = True
+                if 'hardware' in self.config['mod']['audio']:
+                    if self.config['system']['audio']['hardware'] != self.config['mod']['audio']['hardware']:
+                        self.config['system']['audio']['hardware'] = self.config['mod']['audio']['hardware']
+                        reload_subsystem = True
+                if reload_subsystem:
+                    # save new config audio data and force a restart opendsp system
+                    self.save_system()
+                    self.running = False
+                    subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
+                    return
+
+            # save system config updates
+            self.save_system()
+
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])
 
@@ -181,6 +213,10 @@ class Core():
         except Exception as e:
             logging.exception("error loading mod {name}: {message}"
                               .format(name=name, message=str(e)))
+
+    def save_system(self):
+        with open("{}/system.cfg".format(self.path_data), 'w') as sys_config:
+            self.config["system"].write(sys_config)        
 
     def health_check(self):
         pass
@@ -209,7 +245,7 @@ class Core():
                 self.config['system']['audio']['hardware'] = 'hw:0,0'
             if 'system' not in self.config['system']:
                 self.config['system']['system'] = {}
-                self.config['system']['system']['cpu'] = '0'
+                self.config['system']['system']['cpu'] = '1'
                 self.config['system']['system']['realtime'] = '40'
             if 'mod' not in self.config['system']:
                 self.config['system']['mod'] = {}
@@ -335,10 +371,13 @@ class Core():
                          '/sbin/prlimit', '--pid', str(pid), limits])
 
     def set_cpu(self, pid, cpu):
+        """
+        For tickless kernel suport:
+        https://www.kernel.org/doc/Documentation/timers/NO_HZ.txt
+        """
         # set process cpu afinity
-        #subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
-        pass
-
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
+        
     def set_realtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo',
                          '/sbin/chrt', '-a', '-f',
