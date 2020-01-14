@@ -135,8 +135,6 @@ class Core():
         while self.running:
             # interface handlers
             self.midi.handle()
-            # handling port connection state
-            #self.jackd.handle()
             # health check for audio, midi and video subsystem
             self.health_check()
             # check for update packages
@@ -144,7 +142,7 @@ class Core():
             # rest for a while....
             time.sleep(5)
 
-        # no running any more? call stop to handle all running process
+        # not running any more? call stop to handle all running process
         self.stop()
 
     def load_mod(self, name):
@@ -240,13 +238,13 @@ class Core():
                 # audio defaults
                 self.config['system']['audio'] = {}
                 self.config['system']['audio']['rate'] = '48000'
-                self.config['system']['audio']['period'] = '8'
+                self.config['system']['audio']['period'] = '6'
                 self.config['system']['audio']['buffer'] = '256'
                 self.config['system']['audio']['hardware'] = 'hw:0,0'
             if 'system' not in self.config['system']:
                 self.config['system']['system'] = {}
                 self.config['system']['system']['cpu'] = '1'
-                self.config['system']['system']['realtime'] = '40'
+                self.config['system']['system']['realtime'] = '91'
             if 'mod' not in self.config['system']:
                 self.config['system']['mod'] = {}
                 self.config['system']['mod']['name'] = "blank"

@@ -45,8 +45,8 @@ class MidiInterface():
         self.connections_pending = []
         # manage the internal state of user midi input auto connections
         self.hid_devices = []
-        self.blacklist = ['OpenDSP',
-                          'alsa_midi:Midi Through Port-0',
+        self.blacklist = ['a2j:RtMidiOut Client (capture)',
+                          'a2j:Midi Through (capture)',
                           'ttymidi']
         # midi standard cmd byte definitions
         self.midi_cmd = {'cc': 0xB0,
@@ -79,6 +79,15 @@ class MidiInterface():
         #...
 
     def start(self):
+        # start a2jmidid to bridge midi data
+        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-e', '-u'])
+        # set cpu afinnity
+        if 'cpu' in self.opendsp.config['system']['system']:
+            self.opendsp.set_cpu(self.proc['a2jmidid'].pid, self.opendsp.config['system']['system']['cpu'])
+        # set it +4 for realtime priority
+        if 'realtime' in self.opendsp.config['system']['system']:
+            self.opendsp.set_realtime(self.proc['a2jmidid'].pid, 4)
+
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=1)
         self.thread['processor'] = threading.Thread(target=self.processor,

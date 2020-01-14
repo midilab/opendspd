@@ -42,14 +42,16 @@ class JackdInterface():
     def start(self):
         # start jack server
         self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
-                                                      '-R', '-t10000', '-dalsa',
+                                                      '-R',
+                                                      '-t10000',
+                                                      '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
                                                       '-n', self.config['period'],
-                                                      '-Xseq',
+                                                      '-Xalsarawmidi',
                                                       '-S'])
-        
+
         # set cpu afinnity? 
         if 'cpu' in self.sys_config:
             self.opendsp.set_cpu(self.proc['jackd'].pid, self.sys_config['cpu'])
