@@ -43,14 +43,15 @@ class JackdInterface():
         # start jack server
         self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
                                                       '-R',
+                                                      '-P99',
                                                       '-t10000',
                                                       '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
                                                       '-n', self.config['period'],
-                                                      '-Xalsarawmidi',
-                                                      '-S'])
+                                                      #'-S',
+                                                      '-Xalsarawmidi'])
 
         # set cpu afinnity? 
         if 'cpu' in self.sys_config:
