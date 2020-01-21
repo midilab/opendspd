@@ -47,6 +47,7 @@ class MidiInterface():
         self.hid_devices = []
         self.blacklist = ['a2j:RtMidiOut Client (capture)',
                           'a2j:Midi Through (capture)',
+                          'OpenDSP',
                           'ttymidi']
         # midi standard cmd byte definitions
         self.midi_cmd = {'cc': 0xB0,

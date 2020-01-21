@@ -100,6 +100,8 @@ class Mod:
             # reset connections to force new ones before load new project
             self.connection_reset()
             self.app[self.main_app].load_project(project)
+            # save mod state
+            self.opendsp.save_mod()
         else:
             logging.info("No app1 setup for main app reference on projects")
 

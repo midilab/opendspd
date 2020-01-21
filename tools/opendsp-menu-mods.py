@@ -26,16 +26,17 @@ if __name__ == '__main__':
         with open("/var/tmp/opendsp-run-data", "r") as mod_setup:
             data_mod = mod_setup.readlines()
     except:
-        print("<openbox_pipe_menu><item label=\"opendsp not running, please start it first...\" /></openbox_pipe_menu>")
+        print("<openbox_pipe_menu><separator label=\"OpenDSP not running\" /></openbox_pipe_menu>")
         exit()
 
-    if len(data_mod) < 1:
-        print("<openbox_pipe_menu><item label=\"no project path setup\" /></openbox_pipe_menu>")
+    if len(data_mod) <= 1:
+        print("<openbox_pipe_menu><<separator label=\"No user data path setup\" /></openbox_pipe_menu>")
         exit()
 
     #opendsp_user_data_path
-    #...
+    #name_mod
     path_data = data_mod[0].replace('\n', '')
+    name_mod = data_mod[1].replace('\n', '')
 
     # sorted list of diretories inside mod path
     avaliable_mods = sorted(next(os.walk("{path_data}/mod/"
@@ -43,9 +44,10 @@ if __name__ == '__main__':
 
     # make me a menu please
     menu = "<openbox_pipe_menu>"
+    menu += "<separator label=\"{}\"/>".format(name_mod)
     for index, mod in enumerate(avaliable_mods):
         menu += "<item label=\"{id}: {name_mod}\">".format(id=index, name_mod=mod)
-        menu += "<action name=\"Execute\"><command>send_midi -J midiRT:in_1 CTRL,16,120,{}</command></action>".format(index)
+        menu += "<action name=\"Execute\"><command>send_midi -J OpenDSP:in_1 CTRL,16,120,{}</command></action>".format(index)
         menu += "</item>"
     menu += "</openbox_pipe_menu>"
 

@@ -124,6 +124,10 @@ class Core():
         # script call for machine specific setup/tunning
         self.machine_setup()
 
+        # do we need to unload rcu and organize irq threads for full tickless kernel support?
+        if 'cpu' in self.config['system']['system']:
+            self.set_tickless(self.config['system']['system']['cpu'])
+
         # setup running state
         self.running = True
 
@@ -213,8 +217,14 @@ class Core():
                               .format(name=name, message=str(e)))
 
     def save_system(self):
-        with open("{}/system.cfg".format(self.path_data), 'w') as sys_config:
+        system_file = "{}/system.cfg".format(self.path_data)
+        with open(system_file, 'w') as sys_config:
             self.config["system"].write(sys_config)        
+
+    def save_mod(self):
+        mod_file = "{}/mod/{}/mod.cfg".format(self.path_data, self.config['system']['mod']['name'])
+        with open(mod_file, 'w') as mod_config:
+            self.config["mod"].write(mod_config)
 
     def health_check(self):
         pass
@@ -245,6 +255,7 @@ class Core():
                 self.config['system']['system'] = {}
                 self.config['system']['system']['cpu'] = '1'
                 self.config['system']['system']['realtime'] = '91'
+                self.config['system']['system']['display'] = 'native, virtual'
             if 'mod' not in self.config['system']:
                 self.config['system']['mod'] = {}
                 self.config['system']['mod']['name'] = "blank"
@@ -273,10 +284,16 @@ class Core():
 
         # parse [mod] config node
         if 'mod' in config:
-            # display requests without app
+            # display without app request
             if 'display' in config['mod']:
                 for display in config['mod']['display'].split(","):
                     display_mod.add(display.strip())
+
+        # parse [system] global config 
+        # display without app request
+        if 'display' in self.config['system']['system']:
+            for display in self.config['system']['system']['display'].split(","):
+                display_mod.add(display.strip())
 
         # some one to stop?
         display_run = set([display
@@ -374,7 +391,7 @@ class Core():
         https://www.kernel.org/doc/Documentation/timers/NO_HZ.txt
         """
         # set process cpu afinity
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-p', '-c', str(cpu), str(pid)], shell=False)
+        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(cpu), str(pid)], shell=False)
         
     def set_realtime(self, pid, inc=0):
         subprocess.call(['/sbin/sudo',
@@ -383,10 +400,14 @@ class Core():
                          str(pid)])
 
     def machine_setup(self):
-        # force rtirq to restart
-        #subprocess.run(['/sbin/sudo', '/usr/bin/rtirq', 'restart'])
         # set main PCM to max gain volume
         subprocess.run(['/bin/amixer', 'sset', 'PCM,0', '100%'])
+
+    def set_tickless(self, cpus):
+        # unload rcu from isolated cpus, commonly the first one...
+        subprocess.run(['for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done'])
+        # move irq threads to opendsp system cpu
+        subprocess.run(["for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
 
     def update_run_data(self):
         """updates /var/tmp/opendsp-run-data:
@@ -396,22 +417,24 @@ class Core():
         mod_project
         mod_project_extension
         """
-        #, path_data, name_mod, path_project, name_project):
+        #, path_data, name_mod, app_name, path_project, name_project):
         data = []
         data.append("{path_data}\n"
                     .format(path_data=self.path_data))
+        data.append("{}\n"
+                    .format(self.config['system']['mod'].get('name', '')))
         if self.config['mod'] != None:
             if 'app1' in self.config['mod']:
-                name_mod = self.config['mod']['app1'].get('name', '')
+                app_name = self.config['mod']['app1'].get('name', '')
                 data.append("{name}\n"
-                            .format(name=name_mod))
+                            .format(name=app_name))
                 data.append("{project_path}\n"
                             .format(project_path=self.mod.path_project))
                 data.append("{project}\n"
                             .format(project=self.config['mod']['app1'].get('project', '')))
-                if name_mod in self.config['ecosystem']:
+                if app_name in self.config['ecosystem']:
                     data.append("{project_extension}\n"
-                                .format(project_extension=self.config['ecosystem'][name_mod].get('extension', '')))
+                                .format(project_extension=self.config['ecosystem'][app_name].get('extension', '')))
         try:
             with open("/var/tmp/opendsp-run-data", "w+") as run_data:
                 run_data.writelines(data)
