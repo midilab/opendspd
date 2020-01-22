@@ -66,6 +66,8 @@ class Core():
         # state attributes
         self.path_data = path_data
         self.updates_counter = 0
+        # rt process 
+        self.rt_proc = {}
 
         # setup signal handling
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -137,6 +139,8 @@ class Core():
         logging.info('OpenDSP up and running!')
 
         while self.running:
+            # realtime and tickless support check
+            self.rt_handle()
             # interface handlers
             self.midi.handle()
             # health check for audio, midi and video subsystem
@@ -354,6 +358,9 @@ class Core():
             environment["SDL_AUDIODRIVER"] = "jack"
             environment["SDL_VIDEODRIVER"] = "x11"
 
+        if 'force_display' in self.config['system']['system']:
+            env = self.config['system']['system']['force_display']
+
         # native display run env request?
         if env == 'native':
             environment["DISPLAY"] = ":0"
@@ -385,29 +392,57 @@ class Core():
         subprocess.call(['/sbin/sudo',
                          '/sbin/prlimit', '--pid', str(pid), limits])
 
-    def set_cpu(self, pid, cpu):
+    def set_cpu(self, rt_process, cpu):
         """
         For tickless kernel suport:
         https://www.kernel.org/doc/Documentation/timers/NO_HZ.txt
         """
-        # set process cpu afinity
-        subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(cpu), str(pid)], shell=False)
-        
-    def set_realtime(self, pid, inc=0):
-        subprocess.call(['/sbin/sudo',
-                         '/sbin/chrt', '-a', '-f',
-                         '-p', str(int(self.config['system']['system']['realtime'])+inc),
-                         str(pid)])
+        rt_process = rt_process.replace('"', '')
+        if rt_process not in self.rt_proc:
+            self.rt_proc[rt_process] = {}
+            self.rt_proc[rt_process]['list'] = [] 
+        self.rt_proc[rt_process]['cpu'] = cpu
+
+    def set_realtime(self, rt_process, inc=0):
+        """
+        For RT kernel suport:
+        https://rt.wiki.kernel.org/index.php/Main_Page
+        """
+        rt_process = rt_process.replace('"', '')
+        if rt_process not in self.rt_proc:
+            self.rt_proc[rt_process] = {}
+            self.rt_proc[rt_process]['list'] = [] 
+        self.rt_proc[rt_process]['priority'] = int(self.config['system']['system']['realtime'])+inc
+
+    def rt_handle(self):
+        # read pgrep process and compare those ones already setup from the new ones...
+        for proc in self.rt_proc:
+            # pgrep to find all process and childs to setup realtime
+            pid_list = subprocess.check_output(['pgrep', proc]).decode()
+            for pid in pid_list.split('\n'):
+                if len(pid) > 0:
+                    if pid not in self.rt_proc[proc]['list']:
+                        if 'cpu' in self.rt_proc[proc]:
+                            # set process cpu afinity
+                            subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(self.rt_proc[proc]['cpu']), str(pid)], shell=False)
+                        if 'priority' in self.rt_proc[proc]:
+                            # priority
+                            subprocess.call(['/sbin/sudo',
+                                            '/sbin/chrt', '-a', '-f',
+                                            '-p', str(self.rt_proc[proc]['priority']),
+                                            str(pid)])
+                        # add to list of handled pids
+                        self.rt_proc[proc]['list'].append(pid)
+
+    def set_tickless(self, cpus):
+        # unload rcu from isolated cpus
+        subprocess.run(['/usr/bin/bash', '-c', "'for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done'"])
+        # move irq threads to opendsp system cpu
+        subprocess.run(['/usr/bin/bash', '-c', "'for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done'".format(cpus)])
 
     def machine_setup(self):
         # set main PCM to max gain volume
         subprocess.run(['/bin/amixer', 'sset', 'PCM,0', '100%'])
-
-    def set_tickless(self, cpus):
-        # unload rcu from isolated cpus, commonly the first one...
-        subprocess.run(['for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done'])
-        # move irq threads to opendsp system cpu
-        subprocess.run(["for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
 
     def update_run_data(self):
         """updates /var/tmp/opendsp-run-data:

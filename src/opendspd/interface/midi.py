@@ -84,10 +84,10 @@ class MidiInterface():
         self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-e', '-u'])
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
-            self.opendsp.set_cpu(self.proc['a2jmidid'].pid, self.opendsp.config['system']['system']['cpu'])
+            self.opendsp.set_cpu("a2jmidid", self.opendsp.config['system']['system']['cpu'])
         # set it +4 for realtime priority
         if 'realtime' in self.opendsp.config['system']['system']:
-            self.opendsp.set_realtime(self.proc['a2jmidid'].pid, 4)
+            self.opendsp.set_realtime("a2jmidid", 4)
 
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=1)
@@ -106,10 +106,10 @@ class MidiInterface():
 
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
-            self.opendsp.set_cpu(self.proc['mididings'].pid, self.opendsp.config['system']['system']['cpu'])
+            self.opendsp.set_cpu("mididings", self.opendsp.config['system']['system']['cpu'])
         # set it +4 for realtime priority
         if 'realtime' in self.opendsp.config['system']['system']:
-            self.opendsp.set_realtime(self.proc['mididings'].pid, 4)
+            self.opendsp.set_realtime("mididings", 4)
 
         # channel 16 are mean to control opendsp interface
         self.port_add('midiRT:out_16', 'OpenDSP:in_1')
@@ -130,10 +130,10 @@ class MidiInterface():
             
             # set cpu afinnity
             if 'cpu' in self.opendsp.config['system']['system']:
-                self.opendsp.set_cpu(self.proc['onboard'].pid, self.opendsp.config['system']['system']['cpu'])
+                self.opendsp.set_cpu("ttymidi", self.opendsp.config['system']['system']['cpu'])
             # set it +4 for realtime priority
             if 'realtime' in self.opendsp.config['system']['system']:
-                self.opendsp.set_realtime(self.proc['onboard'].pid, 4)
+                self.opendsp.set_realtime("ttymidi", 4)
 
             # add to state
             self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')

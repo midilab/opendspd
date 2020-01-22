@@ -76,11 +76,11 @@ class App:
         
         # set cpu affinity?
         if 'cpu' in self.config:
-            self.opendsp.set_cpu(self.data['proc'].pid, str(self.config['cpu']))
+            self.opendsp.set_cpu(self.app.get('rt_process', self.app['bin']), str(self.config['cpu']))
 
         # set realtime priority?
         if 'realtime' in self.app and 'realtime' in self.opendsp.config['system']['system']:
-            self.opendsp.set_realtime(self.data['proc'].pid, int(self.app['realtime']))
+            self.opendsp.set_realtime(self.app.get('rt_process', self.app['bin']), int(self.app['realtime']))
 
         # generate a list from, parsed by ','
         if 'audio_input' in self.app:
