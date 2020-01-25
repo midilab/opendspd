@@ -1,5 +1,5 @@
 [Unit]
-Description=OpenDSP Remote Control Service
+Description=Samba Service
 After=remote-fs.service
 
 [Service]

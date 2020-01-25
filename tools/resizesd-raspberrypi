@@ -1,0 +1,31 @@
+#!/bin/bash
+
+set -e
+
+read -p "Do you want to resize your data partition? Press enter to continue"
+
+echo "Stoping OpenDSP and services..."
+
+systemctl stop opendsp || true
+systemctl stop smb || true
+systemctl stop nmb || true
+sleep 5
+umount -v /home/opendsp/data || true
+
+echo "Resizing..."
+
+parted /dev/mmcblk0 <<EOF
+resizepart
+3
+-16M
+q
+EOF
+
+e2fsck -p -f /dev/mmcblk0p3
+resize2fs /dev/mmcblk0p3
+
+read -p "Done! Press enter to reboot your machine..."
+
+mount -o remount,rw /
+rm /usr/bin/resizesd
+shutdown -r now
