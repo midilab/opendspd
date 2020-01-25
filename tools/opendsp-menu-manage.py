@@ -39,13 +39,18 @@ if __name__ == '__main__':
         menu += "<action name=\"Execute\"><command>/sbin/sudo /sbin/systemctl start opendsp</command></action>"
         menu += "</item>"
 
-    # tools: resizesd
+    # tools menu
+    menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
+    # global change password
+    menu += "<item label=\"Change password\">"
+    menu += "<action name=\"Execute\"><command>/usr/bin/urxvt -e /usr/bin/changepassword</command></action>"
+    menu += "</item>"
+    # resizesd 
     if os.path.exists("/usr/bin/resizesd"):
-        menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
         menu += "<item label=\"Resize SD user data\">"
         menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
         menu += "</item>"
-        menu += "</menu>"
+    menu += "</menu>"
 
     menu += "</openbox_pipe_menu>"
 

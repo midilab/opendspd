@@ -15,10 +15,8 @@ while true; do
     read -s -p "Confirm New Password: " PASSWORD2
     echo
 
-    if [ ${#PASSWORD} -ge 8 ]
-    then 
-        break
-    else 
+    if [ ${#PASSWORD} -lt 8 ]
+    then
         echo "Passwords must be at least 8 chars long, please try again..."
         continue
     fi
