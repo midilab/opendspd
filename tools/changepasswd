@@ -39,6 +39,9 @@ echo "opendsp:$PASSWORD" | sudo chpasswd || true
 
 # changing samba file share service password
 echo -ne "$PASSWORD\n$PASSWORD\n" | sudo smbpasswd -a -s opendsp || true
+# persist the password on our RO init copy of samba(check sambafix.sevice)
+sudo cp -r /var/lib/samba/* /var/lib/samba.cp/ || true
+sudo cp -r /var/cache/samba/* /var/cache/samba.cp/ || true
 
 # chaging vnc virtual desktop service password
 x11vnc -storepasswd $PASSWORD /home/opendsp/.vnc/passwd || true
