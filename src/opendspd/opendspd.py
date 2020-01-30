@@ -415,24 +415,28 @@ class Core():
         self.rt_proc[rt_process]['priority'] = int(self.config['system']['system']['realtime'])+inc
 
     def rt_handle(self):
-        # read pgrep process and compare those ones already setup from the new ones...
-        for proc in self.rt_proc:
-            # pgrep to find all process and childs to setup realtime
-            pid_list = subprocess.check_output(['pgrep', proc]).decode()
-            for pid in pid_list.split('\n'):
-                if len(pid) > 0:
-                    if pid not in self.rt_proc[proc]['list']:
-                        if 'cpu' in self.rt_proc[proc]:
-                            # set process cpu afinity
-                            subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(self.rt_proc[proc]['cpu']), str(pid)], shell=False)
-                        if 'priority' in self.rt_proc[proc]:
-                            # priority
-                            subprocess.call(['/sbin/sudo',
-                                            '/sbin/chrt', '-a', '-f',
-                                            '-p', str(self.rt_proc[proc]['priority']),
-                                            str(pid)])
-                        # add to list of handled pids
-                        self.rt_proc[proc]['list'].append(pid)
+        try:
+            # read pgrep process and compare those ones already setup from the new ones...
+            for proc in self.rt_proc:
+                # pgrep to find all process and childs to setup realtime
+                pid_list = subprocess.check_output(['pgrep', proc]).decode()
+                for pid in pid_list.split('\n'):
+                    if len(pid) > 0:
+                        if pid not in self.rt_proc[proc]['list']:
+                            if 'cpu' in self.rt_proc[proc]:
+                                # set process cpu afinity
+                                subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(self.rt_proc[proc]['cpu']), str(pid)], shell=False)
+                            if 'priority' in self.rt_proc[proc]:
+                                # priority
+                                subprocess.call(['/sbin/sudo',
+                                                '/sbin/chrt', '-a', '-f',
+                                                '-p', str(self.rt_proc[proc]['priority']),
+                                                str(pid)])
+                            # add to list of handled pids
+                            self.rt_proc[proc]['list'].append(pid)
+        except Exception as e:
+            logging.error("error handling rt schema: {message}"
+                          .format(message=e))
 
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
