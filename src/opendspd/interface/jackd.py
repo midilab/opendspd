@@ -24,9 +24,9 @@ class JackdInterface():
     ...
     """
 
-    def __init__(self, opendsp):
+    def __init__(self, opendsp, config):
         self.opendsp = opendsp
-        self.config = opendsp.config['system']['audio']
+        self.config = config
         self.sys_config = opendsp.config['system']['system']
         self.client = None
         self.proc = {}
@@ -107,3 +107,6 @@ class JackdInterface():
             except Exception as e:
                 logging.error("error on reset disconnection: {message}"
                               .format(message=e))
+
+    def get_config(self):
+        return self.config

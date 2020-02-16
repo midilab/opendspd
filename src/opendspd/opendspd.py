@@ -62,7 +62,7 @@ class Core():
         self.config = {}
         self.config['system'] = configparser.ConfigParser()
         self.config['ecosystem'] = configparser.ConfigParser()
-        self.config['mod'] = None
+        self.config['mod'] = {}
         # state attributes
         self.path_data = path_data
         self.updates_counter = 0
@@ -109,7 +109,11 @@ class Core():
 
         # interfaces
         logging.info('Initing Jackd Interface')
-        self.jackd = JackdInterface(self)
+        audio_config = self.config['system']['audio']
+        # app requests different audio setup? merge setup
+        if 'audio' in self.config['mod']:
+            audio_config.update(self.config['mod']['audio'])
+        self.jackd = JackdInterface(self, audio_config)
         self.jackd.start()
                 
         logging.info('Initing OSC Interface')
@@ -153,6 +157,21 @@ class Core():
         # not running any more? call stop to handle all running process
         self.stop()
 
+    def load_config_mod(self, name):
+        # load our module cfg file into memory
+        del self.config['mod']
+        self.config['mod'] = {}
+        try:
+            self.config['mod'] = configparser.ConfigParser()
+            self.config['mod'].read("{path_data}/mod/{name_mod}/mod.cfg"
+                                    .format(path_data=self.path_data,
+                                            name_mod=name))
+            return True
+        except Exception as e:
+            logging.exception("error loading mod {name} config: {message}"
+                              .format(name=name, message=str(e)))
+        return False
+
     def load_mod(self, name):
         """Load a Mod
         get data from mod cfg
@@ -166,42 +185,32 @@ class Core():
                 self.mod.stop()
                 del self.mod
 
-            # read our cfg file into memory
-            del self.config['mod']
-            self.config['mod'] = configparser.ConfigParser()
-            self.config['mod'].read("{path_data}/mod/{name_mod}/mod.cfg"
-                                    .format(path_data=self.path_data,
-                                            name_mod=name))
+            # load module config
+            if self.load_config_mod(name) is not True:
+                return
+
+            # any audio config changes?
+            reload_subsystem = False
+            current_audio_config = self.jackd.get_config()
+            check_audio_config = self.config['system']['audio']
+            # check against requested mod instead of main system default?
+            if 'audio' in self.config['mod']:
+                check_audio_config = self.config['mod']['audio']
+            # find the intersection of current and check config
+            change = current_audio_config.keys() & check_audio_config.keys()
+            # any value requested that differs from current one?
+            for c in change:
+                if current_audio_config[c] != check_audio_config[c]:
+                    reload_subsystem = True
+            if reload_subsystem:
+                # save new config audio data and force a restart opendsp system
+                self.save_system()
+                self.running = False
+                subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
+                return
 
             # update sysconfig mod name reference and save it back to config file
             self.config['system']['mod']['name'] = name
-
-            # any audio config changes?
-            if 'audio' in self.config['mod']:
-                reload_subsystem = False
-                if 'rate' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['rate'] != self.config['mod']['audio']['rate']:
-                        self.config['system']['audio']['rate'] = self.config['mod']['audio']['rate']
-                        reload_subsystem = True
-                if 'period' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['period'] != self.config['mod']['audio']['period']:
-                        self.config['system']['audio']['period'] = self.config['mod']['audio']['period']
-                        reload_subsystem = True
-                if 'buffer' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['buffer'] != self.config['mod']['audio']['buffer']:
-                        self.config['system']['audio']['buffer'] = self.config['mod']['audio']['buffer']
-                        reload_subsystem = True
-                if 'hardware' in self.config['mod']['audio']:
-                    if self.config['system']['audio']['hardware'] != self.config['mod']['audio']['hardware']:
-                        self.config['system']['audio']['hardware'] = self.config['mod']['audio']['hardware']
-                        reload_subsystem = True
-                if reload_subsystem:
-                    # save new config audio data and force a restart opendsp system
-                    self.save_system()
-                    self.running = False
-                    subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
-                    return
-
             # save system config updates
             self.save_system()
 
@@ -246,26 +255,25 @@ class Core():
             self.config['system'].read("{path_data}/system.cfg"
                                        .format(path_data=self.path_data))
 
-            # audio setup
-            # if system config file does not exist, load default values
-            if 'audio' not in self.config['system']:
-                # audio defaults
-                self.config['system']['audio'] = {}
-                self.config['system']['audio']['rate'] = '48000'
-                self.config['system']['audio']['period'] = '6'
-                self.config['system']['audio']['buffer'] = '256'
-                self.config['system']['audio']['hardware'] = 'hw:0,0'
-            if 'system' not in self.config['system']:
-                self.config['system']['system'] = {}
-                self.config['system']['system']['cpu'] = '1'
-                self.config['system']['system']['realtime'] = '91'
-                self.config['system']['system']['display'] = 'native, virtual'
-            if 'mod' not in self.config['system']:
-                self.config['system']['mod'] = {}
-                self.config['system']['mod']['name'] = "blank"
-            if 'osc' not in self.config['system']:
-                self.config['system']['osc'] = {}
-                self.config['system']['osc']['port'] = '8000'
+            # fallback default configuration in case user miss something
+            default = {
+                'audio': { 'rate': '48000', 'period': '6', 'buffer': '256', 'hardware': 'hw:0,0' },
+                'system': { 'cpu': '1', 'realtime': '91', 'display': 'native, virtual', 'force_display': '' },
+                'mod': { 'name': 'blank' },
+                'midi': { 'onboard-uart': 'no', 'device': '/dev/ttyAMA0', 'baudrate': '38400' },
+                'osc': { 'port': '8000' }
+            }
+            # merge and update
+            for c in self.config['system']:
+                if c in default:
+                    default[c].update(self.config['system'][c])
+            for c in default:
+                self.config['system'][c] = default[c]
+
+            # load module config into self.config['mod']
+            if self.load_config_mod(self.config['system']['mod']['name']) is not True:
+                return
+
         except Exception as e:
             logging.error("error trying to load opendsp config file: {message}"
                           .format(message=e))
