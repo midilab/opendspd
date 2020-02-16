@@ -23,6 +23,7 @@ if __name__ == '__main__':
     menu = "<openbox_pipe_menu>"
     menu += "<separator label=\"Manage\"/>"
 
+    # start, stop, restart menu
     if os.path.exists("/var/tmp/opendsp-run-data"):
         # running
         # stop, restart
@@ -39,8 +40,9 @@ if __name__ == '__main__':
         menu += "<action name=\"Execute\"><command>/sbin/sudo /sbin/systemctl start opendsp</command></action>"
         menu += "</item>"
 
-    # tools menu
+    # tools submenu
     menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
+    menu += "<separator label=\"Tools\"/>"
     # global change password
     menu += "<item label=\"Change password\">"
     menu += "<action name=\"Execute\"><command>/usr/bin/urxvt -e /usr/bin/changepassword</command></action>"
@@ -51,7 +53,6 @@ if __name__ == '__main__':
         menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
         menu += "</item>"
     menu += "</menu>"
-
     menu += "</openbox_pipe_menu>"
 
     print(menu)

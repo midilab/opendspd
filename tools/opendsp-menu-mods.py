@@ -30,7 +30,7 @@ if __name__ == '__main__':
         exit()
 
     if len(data_mod) <= 1:
-        print("<openbox_pipe_menu><<separator label=\"No user data path setup\" /></openbox_pipe_menu>")
+        print("<openbox_pipe_menu><separator label=\"No mod selected\" /></openbox_pipe_menu>")
         exit()
 
     #opendsp_user_data_path
