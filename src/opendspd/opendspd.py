@@ -258,7 +258,7 @@ class Core():
             # fallback default configuration in case user miss something
             default = {
                 'audio': { 'rate': '48000', 'period': '6', 'buffer': '256', 'hardware': 'hw:0,0' },
-                'system': { 'cpu': '1', 'realtime': '91', 'display': 'native, virtual', 'force_display': '' },
+                'system': { 'cpu': '1', 'realtime': '91', 'display': 'native, virtual', 'force_display': None },
                 'mod': { 'name': 'blank' },
                 'midi': { 'onboard-uart': 'no', 'device': '/dev/ttyAMA0', 'baudrate': '38400' },
                 'osc': { 'port': '8000' }
@@ -361,13 +361,16 @@ class Core():
         # yes we need environment vars!
         environment = os.environ.copy()
 
+        # force all proc request into a specific display
+        # overwrite the display option on mod.cfg
+        if 'force_display' in self.config['system']['system']:
+            if self.config['system']['system']['force_display'] is not None:
+                env = self.config['system']['system']['force_display']
+
         if env is not None:
             # setup common SDL environment
             environment["SDL_AUDIODRIVER"] = "jack"
             environment["SDL_VIDEODRIVER"] = "x11"
-
-        if 'force_display' in self.config['system']['system']:
-            env = self.config['system']['system']['force_display']
 
         # native display run env request?
         if env == 'native':
