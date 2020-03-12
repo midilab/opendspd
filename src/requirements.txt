@@ -20,7 +20,7 @@ packaging==17.1
 Pillow==5.2.0
 ply==3.11
 progress==1.4
-psutil==5.4.7
+psutil==5.6.6
 pycparser==2.18
 pyliblo==0.10.0
 pyparsing==2.2.1
