@@ -64,7 +64,7 @@ if __name__ == '__main__':
     menu += "<separator label=\"{}\"/>".format(name_mod)
     for idx, project in enumerate(project_list,1):
         menu += "<item label=\"{}: {}\">".format(idx, project)
-        menu += "<action name=\"Execute\"><command>send_midi -J OpenDSP:in_1 PROGRAM,16,{}</command></action>".format(idx)
+        menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/project/load {} 0</command></action>".format(idx)
         menu += "</item>"
     menu += "</openbox_pipe_menu>"
 

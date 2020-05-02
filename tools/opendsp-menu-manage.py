@@ -23,6 +23,37 @@ if __name__ == '__main__':
     menu = "<openbox_pipe_menu>"
     menu += "<separator label=\"Manage\"/>"
 
+    # display menu
+    menu += "<menu id=\"opendsp-display\" label=\"Display\">"
+    menu += "<separator label=\"Force Display\"/>"
+    # do not force display setup
+    menu += "<item label=\"Disable\">"
+    menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/display/force_screen 'off'</command></action>"
+    menu += "</item>"
+    # force into native
+    menu += "<item label=\"Native HDMI\">"
+    menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/display/force_screen 'native'</command></action>"
+    menu += "</item>"
+    # force into virtual
+    menu += "<item label=\"Virtual VNC\">"
+    menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/display/force_screen 'virtual'</command></action>"
+    menu += "</item>"
+    menu += "</menu>"
+
+    # tools menu
+    menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
+    menu += "<separator label=\"Tools\"/>"
+    # global change password
+    menu += "<item label=\"Change password\">"
+    menu += "<action name=\"Execute\"><command>/usr/bin/urxvt -e /usr/bin/changepassword</command></action>"
+    menu += "</item>"
+    # resizesd 
+    if os.path.exists("/usr/bin/resizesd"):
+        menu += "<item label=\"Resize SD user data\">"
+        menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
+        menu += "</item>"
+    menu += "</menu>"
+
     # start, stop, restart menu
     if os.path.exists("/var/tmp/opendsp-run-data"):
         # running
@@ -40,19 +71,8 @@ if __name__ == '__main__':
         menu += "<action name=\"Execute\"><command>/sbin/sudo /sbin/systemctl start opendsp</command></action>"
         menu += "</item>"
 
-    # tools submenu
-    menu += "<menu id=\"opendsp-tools\" label=\"Tools\">"
-    menu += "<separator label=\"Tools\"/>"
-    # global change password
-    menu += "<item label=\"Change password\">"
-    menu += "<action name=\"Execute\"><command>/usr/bin/urxvt -e /usr/bin/changepassword</command></action>"
-    menu += "</item>"
-    # resizesd 
-    if os.path.exists("/usr/bin/resizesd"):
-        menu += "<item label=\"Resize SD user data\">"
-        menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /sbin/sudo /usr/bin/resizesd</command></action>"
-        menu += "</item>"
-    menu += "</menu>"
+
     menu += "</openbox_pipe_menu>"
 
     print(menu)
+

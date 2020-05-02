@@ -168,8 +168,7 @@ class Core():
                                             name_mod=name))
             return True
         except Exception as e:
-            logging.exception("error loading mod {name} config: {message}"
-                              .format(name=name, message=str(e)))
+            logging.exception("error loading mod {name} config: {message}".format(name=name, message=str(e)))
         return False
 
     def load_mod(self, name):
@@ -205,8 +204,7 @@ class Core():
             if reload_subsystem:
                 # save new config audio data and force a restart opendsp system
                 self.save_system()
-                self.running = False
-                subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
+                self.restart()
                 return
 
             # update sysconfig mod name reference and save it back to config file
@@ -449,6 +447,10 @@ class Core():
             logging.error("error handling rt schema: {message}"
                           .format(message=e))
 
+    def restart(self):
+        self.running = False
+        subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
+
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
         subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
@@ -531,9 +533,6 @@ class Core():
                                            package=path_package))
                 if 'opendspd' in path_package:
                     # restart our self
-                    subprocess.call(['/sbin/sudo',
-                                     '/sbin/systemctl',
-                                     'restart',
-                                     'opendsp'])
+                    self.restart()
         else:
             self.updates_counter += 1

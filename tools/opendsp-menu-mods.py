@@ -47,7 +47,7 @@ if __name__ == '__main__':
     menu += "<separator label=\"{}\"/>".format(name_mod)
     for index, mod in enumerate(avaliable_mods):
         menu += "<item label=\"{id}: {name_mod}\">".format(id=index, name_mod=mod)
-        menu += "<action name=\"Execute\"><command>send_midi -J OpenDSP:in_1 CTRL,16,120,{}</command></action>".format(index)
+        menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/mod/load {} 0</command></action>".format(index)
         menu += "</item>"
     menu += "</openbox_pipe_menu>"
 

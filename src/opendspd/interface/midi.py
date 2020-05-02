@@ -59,6 +59,10 @@ class MidiInterface():
         self.proc = {}
         self.devices = {}
         self.thread = {}
+        # midi registers
+        self.midi_register = {'mod_id': 0,
+                         'bank_id': 0,
+                         'project_id': 0}
 
     def stop(self):
         # disconnect all ports
@@ -92,8 +96,8 @@ class MidiInterface():
         # start mididings and a thread for midi input user control and feedback listening
         config(backend='jack', client_name='OpenDSP', in_ports=1)
         self.thread['processor'] = threading.Thread(target=self.processor,
-                                                         daemon=True,
-                                                         args=())
+                                                    daemon=True,
+                                                    args=())
         self.thread['processor'].start()
 
         channel_list = ", ".join(["{chn}: Channel(1) >> Port({chn})".format(chn=channel)
@@ -167,16 +171,72 @@ class MidiInterface():
             # change mod action (double press to trigger?)
             # change project action (double press to trigger?)
 
-            if event.ctrl == 120:
+            # MOD manage: 3 CCs, 2 interfaces
+            if event.ctrl == 79:
+                # change mod by value
                 if self.opendsp.mod is not None:
                     mod = self.opendsp.mod.get_mod_by_idx(event.value)
                     if mod is not None:
                         self.opendsp.load_mod(mod)
                 return
-            #if event.ctrl == 114:
-            #    # restart opendspd
-            #    subprocess.call('/sbin/sudo /usr/bin/systemctl restart opendsp', shell=True)
-            #    return
+            if event.ctrl == 85:
+                # change mod select CC: select mod(knob)
+                self.midi_register['mod_id'] = event.value
+                return
+            if event.ctrl == 86:
+                # change mod by select CC: change mod(button)
+                if self.opendsp.mod is not None:
+                    mod = self.opendsp.mod.get_mod_by_idx(self.midi_register['mod_id'])
+                    if mod is not None:
+                        self.opendsp.load_mod(mod)
+                return
+
+            # MOD Project: manage 4 CCs, 2 interfaces
+            if event.ctrl == 87:
+                # change project by value
+                if self.opendsp.mod is not None:
+                    project = self.opendsp.mod.get_project_by_idx(event.value)
+                    if project is not None:
+                        self.opendsp.mod.load_project(project)
+                return
+            if event.ctrl == 88:
+                # change project bank id CC: selec project bank(knob)
+                self.midi_register['bank_id'] = event.value
+                return
+            if event.ctrl == 89:
+                # change project id CC: selec project(knob)
+                self.midi_register['project_id'] = event.value
+                return
+            if event.ctrl == 90:
+                # change project by select CC
+                if self.opendsp.mod is not None:
+                    # self.midi_register['bank_id'] # not implemented yet...
+                    project = self.opendsp.mod.get_project_by_idx(self.midi_register['project_id'])
+                    if project is not None:
+                        self.opendsp.mod.load_project(project)
+                return            
+
+            # OpenDSP manage
+            if event.ctrl == 83:
+                # restart opendspd
+                self.opendsp.restart()
+                return
+
+            if event.ctrl == 80:
+                # force display
+                logging.info("force display!")
+                if 0 <= event.value <= 41:
+                    if 'force_display' in self.opendsp.config['system']['system']:
+                        del self.opendsp.config['system']['system']['force_display']
+                    else:
+                        return
+                elif 42 <= event.value <= 84:
+                    self.opendsp.config['system']['system']['force_display'] = 'native'
+                elif 85 <= event.value <= 127:
+                    self.opendsp.config['system']['system']['force_display'] = 'virtual'
+                self.opendsp.save_system()
+                self.opendsp.restart()
+                return
 
     def processor(self):
         # opendsp midi controlled via program changes and cc messages on channel 16
