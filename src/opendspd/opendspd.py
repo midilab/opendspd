@@ -201,16 +201,14 @@ class Core():
             for c in change:
                 if current_audio_config[c] != check_audio_config[c]:
                     reload_subsystem = True
-            if reload_subsystem:
-                # save new config audio data and force a restart opendsp system
-                self.save_system()
-                self.restart()
-                return
-
             # update sysconfig mod name reference and save it back to config file
             self.config['system']['mod']['name'] = name
             # save system config updates
             self.save_system()
+            if reload_subsystem:
+                # force a restart opendsp system
+                self.restart()
+                return
 
             # inteligent display managment to save our beloved resources
             self.manage_display(self.config['mod'])
