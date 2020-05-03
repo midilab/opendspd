@@ -49,17 +49,18 @@ class App:
             call.extend(self.app['args'].split(" "))
         # project load parameter
         if 'project' in self.config:
-            project_arg = "<prj>"
-            path_project = [path
-                            for path in self.config.get('path', "").split("/")
-                            if path != '']
-            project = "{data}/{path}/{project}".format(data=self.path_data,
-                                                       path="/".join(path_project),
-                                                       project=self.config['project']).strip()
-            if 'project_arg' in self.app:
-                project_arg = self.app['project_arg']
-            call.extend([prj.replace("<prj>", project)
-                         for prj in project_arg.split(" ")])
+            if len(self.config['project']) > 0:
+                project_arg = "<prj>"
+                path_project = [path
+                                for path in self.config.get('path', "").split("/")
+                                if path != '']
+                project = "{data}/{path}/{project}".format(data=self.path_data,
+                                                           path="/".join(path_project),
+                                                           project=self.config['project']).strip()
+                if 'project_arg' in self.app:
+                    project_arg = self.app['project_arg']
+                call.extend([prj.replace("<prj>", project)
+                             for prj in project_arg.split(" ")])
         # mod defined args
         if 'args' in self.config:
             call.extend(self.config['args'].split(" "))
