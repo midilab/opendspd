@@ -1,7 +1,4 @@
 # opendspd
-OpenDSP Service Core
-
-OpenDSP is a linux sub-distro aimed for a general DSP - Digital Signal Processing - on portable headless devices like ARM and Intel Computing. You can download OpenDSP linux distribution at http://github.com/midilab/opendsp
 
 ![Image of OpenDSP Plugmod and DX7  view](https://raw.githubusercontent.com/midilab/opendsp/master/doc/plugmod-opendsp.jpg)
 
