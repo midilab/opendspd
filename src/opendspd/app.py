@@ -103,6 +103,8 @@ class App:
             self.stop()
             # assign to config object
             self.config['project'] = project
+            # save mod config
+            self.opendsp.save_mod()
             # restart it again
             self.start()
         except Exception as e:

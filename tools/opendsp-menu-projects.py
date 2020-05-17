@@ -62,7 +62,7 @@ if __name__ == '__main__':
     # make me a menu please
     menu = "<openbox_pipe_menu>"
     menu += "<separator label=\"{}\"/>".format(name_mod)
-    for idx, project in enumerate(project_list,1):
+    for idx, project in enumerate(project_list):
         menu += "<item label=\"{}: {}\">".format(idx, project)
         menu += "<action name=\"Execute\"><command>send_osc 8000 /opendsp/project/load {} 0</command></action>".format(idx)
         menu += "</item>"
