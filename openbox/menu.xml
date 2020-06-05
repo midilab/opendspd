@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<openbox_menu>
+    <menu id="root-menu" label="OpenDSP">
+        <separator label="OpenDSP"/>
+        <menu id="opendsp-mods" label="Mods" execute="/usr/bin/python3 /home/opendsp/.config/openbox/scripts/opendsp-menu-mods.py" />
+	    <menu id="opendsp-projects" label="Projects" execute="/usr/bin/python3 /home/opendsp/.config/openbox/scripts/opendsp-menu-projects.py" />
+        <menu id="opendsp-manage" label="Manage" execute="/usr/bin/python3 /home/opendsp/.config/openbox/scripts/opendsp-menu-manage.py" />
+        <separator label="System Tools"/>
+        <menu id="audio-tools" label="Audio">
+            <separator label="Audio Tools"/>
+            <item label="Jack Server Control"> <action name="Execute">
+                <execute>qjackctl</execute>
+            </action> </item> 		
+	        <item label="Jack Patchbay"> <action name="Execute">
+                <execute>patchage</execute>
+	        </action> </item>	
+	    </menu>
+        <menu id="maintenance" label="Maintenance">
+            <separator label="Maintenance"/>
+            <item label="Terminal"> <action name="Execute">
+                <execute>urxvt</execute>
+            </action> </item> 
+            <separator/>
+            <item label="Restart"> <action name="Execute">
+                    <execute>sudo shutdown -r now</execute>
+                </action> </item>
+            <item label="Power Off"> <action name="Execute">
+                <execute>sudo shutdown now</execute>
+            </action> </item>
+        </menu>
+    </menu>
+</openbox_menu>
