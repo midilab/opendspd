@@ -1,0 +1,10 @@
+[Desktop Entry]
+Encoding=UTF-8
+Type=Menu
+Name=OpenDSP User Menu
+Comment=OpenDSP main menu for tools and system managment
+Exec=xdotool key ctrl+alt+space
+Icon=pd
+Terminal=false
+StartupNotify=false
+Categories=AudioVideo;Audio;
