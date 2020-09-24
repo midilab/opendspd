@@ -84,7 +84,8 @@ class Core():
     def stop(self):
         try:
             # stop mod instance
-            self.mod.stop()
+            if self.mod != None:
+                self.mod.stop()
             # stoping interfaces
             self.midi.stop()
             self.osc.stop()
@@ -181,9 +182,10 @@ class Core():
         """
         try:
             # stop and destroy mod instance in case
-            if self.mod != None:
+            if self.mod is not None:
                 self.mod.stop()
                 del self.mod
+                self.mod = None
 
             # load module config
             if self.load_config_mod(name) is not True:
