@@ -40,25 +40,28 @@ class JackdInterface():
         self.proc = {}
 
     def start(self):
+        priority = 50
+        if 'realtime' in self.sys_config:
+            # set it +8 for realtime priority
+            priority = int(self.sys_config['realtime']) + 8
         # start jack server
         self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
                                                       '-R',
-                                                      '-P99',
-                                                      '-t10000',
+                                                      '-P' + str(priority),
+                                                      '-t80000',
                                                       '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
                                                       '-n', self.config['period'],
-                                                      #'-S',
-                                                      '-Xalsarawmidi'])
+                                                      '-S'])
 
         # set cpu afinnity? 
         if 'cpu' in self.sys_config:
             self.opendsp.set_cpu("jackd", self.sys_config['cpu'])
-        # set it +8 for realtime priority
+        # set realtime priority
         if 'realtime' in self.sys_config:
-            self.opendsp.set_realtime("jackd", 8)
+            self.opendsp.set_realtime("jackd", priority)
 
         # start jack client
         self.client = jack.Client('opendsp_jack')

@@ -46,7 +46,7 @@ class App:
         call = self.app['bin'].split(" ")
         # ecosystem defined args
         if 'args' in self.app:
-            call.extend(self.app['args'].split(" "))
+            call.extend([arg.replace("<path>", self.path_data) for arg in self.app['args'].split(" ")])
         # project load parameter
         if 'project' in self.config:
             if len(self.config['project']) > 0:

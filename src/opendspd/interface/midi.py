@@ -45,10 +45,6 @@ class MidiInterface():
         self.connections_pending = []
         # manage the internal state of user midi input auto connections
         self.hid_devices = []
-        self.blacklist = ['a2j:RtMidiOut Client (capture)',
-                          'a2j:Midi Through (capture)',
-                          'OpenDSP',
-                          'ttymidi']
         # midi standard cmd byte definitions
         self.midi_cmd = {'cc': 0xB0,
                          'note_on': 0x90,
@@ -85,7 +81,7 @@ class MidiInterface():
 
     def start(self):
         # start a2jmidid to bridge midi data
-        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-e', '-u'])
+        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-u'])
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
             self.opendsp.set_cpu("a2jmidid", self.opendsp.config['system']['system']['cpu'])
@@ -141,12 +137,6 @@ class MidiInterface():
 
             # add to state
             self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
-
-        # local midi ports to avoid auto connect
-        for app_name in self.opendsp.config['ecosystem']:
-            if 'midi_output' in self.opendsp.config['ecosystem'][app_name]:
-                connections = self.opendsp.config['ecosystem'][app_name]['midi_output'].replace('"', '')
-                self.blacklist.extend([conn.strip() for conn in connections.split(",")])
 
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:
@@ -258,34 +248,21 @@ class MidiInterface():
         hid devices connections
         """
         # to use jamrouter we need to disable -Xseq on jackd
-        #new_devices = [device for device in glob.glob("/dev/midi*") if device not in self.devices]
+        new_devices = [device for device in glob.glob("/dev/midi*") if device not in self.devices]
         # get new devices up and running
-        #for device in new_devices:
-        #    priority = int(self.opendsp.config['system']['system']['realtime'])+4
+        for device in new_devices:
+            priority = int(self.opendsp.config['system']['system']['realtime'])
             # search for midi devices
-        #    self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority)])
+            self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority), '-j', '-z.06'])
+            # get process name(since jamrouter gets new process each new instance)
+            #process = subprocess.check_output(['/usr/bin/ps', '-p', str(self.devices[device].pid), '-o', 'comm=']).decode()
+            process = 'jamrouter'
             # set cpu afinnity
-        #    if 'cpu' in self.opendsp.config['system']['system']:
-        #        self.opendsp.set_cpu(self.devices[device].pid, self.opendsp.config['system']['system']['cpu'])
+            if 'cpu' in self.opendsp.config['system']['system']:
+                self.opendsp.set_cpu(process, self.opendsp.config['system']['system']['cpu'])
             # set it +4 for realtime priority
-        #    if 'realtime' in self.opendsp.config['system']['system']:
-        #        self.opendsp.set_realtime(self.devices[device].pid, 4)
-
-        jack_midi_lsp = [data.name
-                         for data in self.opendsp.jackd.client.get_ports(is_midi=True, is_output=True)
-                         if all(port.replace("\\", "") not in data.name for port in self.blacklist)]
-
-        for midi_port in jack_midi_lsp:
-            midi_port = midi_port.replace(" ", "\\ ").replace("(", "\\(").replace(")", "\\)")
-            if midi_port in self.hid_devices:
-                continue
-            try:
-                logging.info("opendsp hid device auto connect: {name_port} -> midiRT:in_1"
-                             .format(name_port=midi_port))
-                self.port_add(midi_port, 'midiRT:in_1')
-                self.hid_devices.append(midi_port)
-            except:
-                pass
+            if 'realtime' in self.opendsp.config['system']['system']:
+                self.opendsp.set_realtime(process, 4)
 
     def port_add(self, origin, dest):
         """Connection Port Add

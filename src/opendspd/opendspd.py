@@ -131,7 +131,7 @@ class Core():
         self.machine_setup()
 
         # do we need to unload rcu and organize irq threads for full tickless kernel support?
-        if 'cpu' in self.config['system']['system']:
+        if 'cpu' in self.config['system']['system'] and 'realtime' in self.config['system']['system']:
             self.set_tickless(self.config['system']['system']['cpu'])
 
         # setup running state
@@ -144,7 +144,8 @@ class Core():
 
         while self.running:
             # realtime and tickless support check
-            self.rt_handle()
+            if 'realtime' in self.config['system']['system']:
+                self.rt_handle()
             # interface handlers
             self.midi.handle()
             # health check for audio, midi and video subsystem
@@ -254,9 +255,8 @@ class Core():
             # fallback default configuration in case user miss something
             default = {
                 'audio': { 'rate': '48000', 'period': '6', 'buffer': '256', 'hardware': 'hw:0,0' },
-                'system': { 'cpu': '1', 'realtime': '91', 'display': 'native, virtual' },
+                'system': { 'cpu': '1', 'realtime': '90', 'display': 'native, virtual' },
                 'mod': { 'name': 'blank' },
-                'midi': { 'onboard-uart': 'no', 'device': '/dev/ttyAMA0', 'baudrate': '38400' },
                 'osc': { 'port': '8000' }
             }
             # merge and update
@@ -404,6 +404,9 @@ class Core():
         For tickless kernel suport:
         https://www.kernel.org/doc/Documentation/timers/NO_HZ.txt
         """
+        # only if realtime feature is configured to be used
+        if 'realtime' not in self.config['system']['system'] and 'cpu' not in self.config['system']['system']:
+            return
         rt_process = rt_process.replace('"', '')
         if rt_process not in self.rt_proc:
             self.rt_proc[rt_process] = {}
@@ -415,11 +418,17 @@ class Core():
         For RT kernel suport:
         https://rt.wiki.kernel.org/index.php/Main_Page
         """
+        # only if configured to be used
+        if 'realtime' not in self.config['system']['system']:
+            return
         rt_process = rt_process.replace('"', '')
         if rt_process not in self.rt_proc:
             self.rt_proc[rt_process] = {}
             self.rt_proc[rt_process]['list'] = [] 
-        self.rt_proc[rt_process]['priority'] = int(self.config['system']['system']['realtime'])+inc
+        prio = int(self.config['system']['system']['realtime'])+inc
+        if prio > 99:
+            prio = 99
+        self.rt_proc[rt_process]['priority'] = prio
 
     def rt_handle(self):
         try:
@@ -454,6 +463,7 @@ class Core():
         subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
         # move irq threads to opendsp system cpu
         subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
+        pass
 
     def machine_setup(self):
         # set main PCM to max gain volume
