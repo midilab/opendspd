@@ -247,13 +247,13 @@ class MidiInterface():
         take cares of user on the fly
         hid devices connections
         """
-        # to use jamrouter we need to disable -Xseq on jackd
+        # to use jamrouter we need to disable -Xseq on jackd or make aj2midid not make use of hardware devices -u only
         new_devices = [device for device in glob.glob("/dev/midi*") if device not in self.devices]
         # get new devices up and running
         for device in new_devices:
-            priority = int(self.opendsp.config['system']['system']['realtime'])
+            priority = int(self.opendsp.config['system']['system']['realtime'])+4
             # search for midi devices
-            self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority), '-j', '-z.06'])
+            self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority), '-j', '-z.06']) # -z.94 max
             # get process name(since jamrouter gets new process each new instance)
             #process = subprocess.check_output(['/usr/bin/ps', '-p', str(self.devices[device].pid), '-o', 'comm=']).decode()
             process = 'jamrouter'

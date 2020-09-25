@@ -48,7 +48,7 @@ class JackdInterface():
         self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
                                                       '-R',
                                                       '-P' + str(priority),
-                                                      '-t80000',
+                                                      '-t2000',
                                                       '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],

@@ -182,7 +182,7 @@ class Core():
         """
         try:
             # stop and destroy mod instance in case
-            if self.mod is not None:
+            if self.mod != None:
                 self.mod.stop()
                 del self.mod
                 self.mod = None
@@ -462,7 +462,7 @@ class Core():
 
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
-        subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
+        #subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
         # move irq threads to opendsp system cpu
         subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
         pass
