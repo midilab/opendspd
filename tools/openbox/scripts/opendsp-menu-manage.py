@@ -54,6 +54,19 @@ if __name__ == '__main__':
         menu += "</item>"
     menu += "</menu>"
 
+    # updates menu
+    menu += "<menu id=\"opendsp-updates\" label=\"Updates\">"
+    menu += "<separator label=\"Updates\"/>"
+    # opendspd
+    menu += "<item label=\"OpenDSP Daemon\">"
+    menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /usr/bin/opendspd-update</command></action>"
+    menu += "</item>"
+    # vlc youtube script to stream play update(look mom! no ads!)
+    menu += "<item label=\"VLC Youtube\">"
+    menu += "<action name=\"Execute\"><command>/sbin/sudo /usr/bin/urxvt -e /usr/bin/vlc-youtube-update</command></action>"
+    menu += "</item>"
+    menu += "</menu>"
+
     # start, stop, restart menu
     if os.path.exists("/var/tmp/opendsp-run-data"):
         # running

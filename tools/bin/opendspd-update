@@ -1,0 +1,51 @@
+#!/bin/bash
+
+set -e
+
+echo -e "This will update opendsp daemon"
+
+read -p "Press enter if you want to continue"
+
+# move to /tmp/ directory to manage update data
+cd /tmp/
+
+wget https://github.com/midilab/opendspd/archive/master.zip
+unzip master.zip
+cd opendspd-master/
+
+# compare local version with remote to proceed with update...
+DIFF=$(diff VERSION /home/opendsp/VERSION) 
+if [ "$DIFF" != "" ] 
+then
+    # clear install files
+    cd ../; rm -rf opendspd-master/; rm master.zip
+    read -p "Your opendsp daemon is up-to-date. Press enter to exit."
+    exit
+fi
+
+# remount file system for write pruporse
+mount -o remount,rw / || true
+sleep 1
+
+echo -e "updating tools..."
+cp opendspd-master/tools/bin/* /usr/bin/
+echo -e "updating openbox..."
+cp -r opendspd-master/tools/openbox /home/opendsp/.config/
+echo -e "updating services..."
+cp opendspd-master/services/* /etc/systemd/system/
+systemctl-daemon reload
+echo -e "updating skels..."
+cp -r opendspd-master/skel/* /etc/skel/opendsp/
+echo -e "updating opendspd..."
+cp -r opendspd-master/src/opendspd/* /usr/lib/python3.8/site-packages/opendspd/
+cp opendspd-master/data/mod/ecosystem.cfg /home/opendsp/data/mod/
+cp opendspd-master/VERSION /home/opendsp/
+
+# remount file system for read only
+mount -o remount,ro / || true
+sleep 1
+
+# clear install files
+cd ../; rm -rf opendspd-master/; rm master.zip
+
+read -p "OpenDSP updated! Press enter to exit."
