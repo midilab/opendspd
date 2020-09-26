@@ -1,6 +1,4 @@
-#!/bin/bash
-
-set -e
+#!/bin/sh
 
 echo -e "This will update opendsp daemon"
 
@@ -8,44 +6,49 @@ read -p "Press enter if you want to continue"
 
 # move to /tmp/ directory to manage update data
 cd /tmp/
+# clear any old data
+rm -rf opendspd-master/ || true
+rm master.zip || true
 
-wget https://github.com/midilab/opendspd/archive/master.zip
-unzip master.zip
+echo -e "Checking for updates..."
+wget -q https://github.com/midilab/opendspd/archive/master.zip
+unzip master.zip > /dev/null
 cd opendspd-master/
 
+REPO_VERSION=$(cat VERSION)
+LOCAL_VERSION=$(cat /home/opendsp/VERSION)
 # compare local version with remote to proceed with update...
-DIFF=$(diff VERSION /home/opendsp/VERSION) 
-if [ "$DIFF" != "" ] 
-then
-    # clear install files
-    cd ../; rm -rf opendspd-master/; rm master.zip
+if [[ "$REPO_VERSION" == "$LOCAL_VERSION" ]]; then
     read -p "Your opendsp daemon is up-to-date. Press enter to exit."
-    exit
+else
+    echo -e "Your opendspd daemon is outdated. initing update process!"
+
+    # remount file system for write pruporse
+    mount -o remount,rw / || true
+    sleep 1
+
+    echo -e "updating tools..."
+    cp tools/bin/* /usr/bin/
+    echo -e "updating openbox..."
+    cp -r tools/openbox /home/opendsp/.config/
+    echo -e "updating services..."
+    cp services/* /etc/systemd/system/
+    systemctl daemon-reload
+    echo -e "updating skels..."
+    cp -r skel/* /etc/skel/opendsp/
+    echo -e "updating opendspd..."
+    cp -r src/opendspd/* /usr/lib/python3.8/site-packages/opendspd/
+    cp data/mod/ecosystem.cfg /home/opendsp/data/mod/
+    cp VERSION /home/opendsp/
+
+    # remount file system for read only
+    mount -o remount,ro / || true
+    sleep 1
+
+    read -p "OpenDSP updated! Press enter to exit."
 fi
 
-# remount file system for write pruporse
-mount -o remount,rw / || true
-sleep 1
-
-echo -e "updating tools..."
-cp opendspd-master/tools/bin/* /usr/bin/
-echo -e "updating openbox..."
-cp -r opendspd-master/tools/openbox /home/opendsp/.config/
-echo -e "updating services..."
-cp opendspd-master/services/* /etc/systemd/system/
-systemctl-daemon reload
-echo -e "updating skels..."
-cp -r opendspd-master/skel/* /etc/skel/opendsp/
-echo -e "updating opendspd..."
-cp -r opendspd-master/src/opendspd/* /usr/lib/python3.8/site-packages/opendspd/
-cp opendspd-master/data/mod/ecosystem.cfg /home/opendsp/data/mod/
-cp opendspd-master/VERSION /home/opendsp/
-
-# remount file system for read only
-mount -o remount,ro / || true
-sleep 1
-
-# clear install files
-cd ../; rm -rf opendspd-master/; rm master.zip
-
-read -p "OpenDSP updated! Press enter to exit."
+# clear update files
+cd ..
+rm -rf opendspd-master/ || true
+rm master.zip || true
