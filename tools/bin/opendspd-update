@@ -1,54 +1,67 @@
 #!/bin/sh
 
-echo -e "This will update opendsp daemon"
+echo -e "This will checks for opendsp daemon updates"
 
 read -p "Press enter if you want to continue"
 
+# clear any old data
+[ -d "/tmp/opendspd-master/" ] && rm -rf opendspd-master/ || true
+[ -f "/tmp/master.zip" ] && rm master.zip || true
+
 # move to /tmp/ directory to manage update data
 cd /tmp/
-# clear any old data
-rm -rf opendspd-master/ || true
-rm master.zip || true
 
-echo -e "Checking for updates..."
+echo -e "Checking for updates, please wait..."
 wget -q https://github.com/midilab/opendspd/archive/master.zip
-unzip master.zip > /dev/null
-cd opendspd-master/
+if [ -f "/tmp/master.zip" ]; then
+    unzip master.zip > /dev/null
+    cd opendspd-master/
+    REPO_VERSION=$(cat VERSION)
+    LOCAL_VERSION=$(cat /home/opendsp/VERSION)
+    # compare local version with remote to proceed with update...
+    if [[ "$REPO_VERSION" == "$LOCAL_VERSION" ]]; then
+        read -p "Your opendsp daemon is up-to-date. Press enter to exit."
+    else
+        read -p "Your opendspd daemon is outdated at $LOCAL_VERSION. Press enter to update at $REPO_VERSION"
 
-REPO_VERSION=$(cat VERSION)
-LOCAL_VERSION=$(cat /home/opendsp/VERSION)
-# compare local version with remote to proceed with update...
-if [[ "$REPO_VERSION" == "$LOCAL_VERSION" ]]; then
-    read -p "Your opendsp daemon is up-to-date. Press enter to exit."
+        echo -e "Stoping OpenDSP service..."
+        systemctl stop opendsp
+
+        # remount file system for write pruporse
+        mount -o remount,rw / || true
+        sleep 1
+
+        echo -e "updating tools..."
+        cp tools/bin/* /usr/bin/
+        echo -e "updating openbox..."
+        cp -r tools/openbox /home/opendsp/.config/
+        echo -e "updating services..."
+        cp services/* /etc/systemd/system/
+        systemctl daemon-reload
+        echo -e "updating skels..."
+        cp -r skel/* /etc/skel/opendsp/
+        echo -e "updating opendspd..."
+        cp -r src/opendspd/* /usr/lib/python3.8/site-packages/opendspd/
+        cp data/mod/ecosystem.cfg /home/opendsp/data/mod/
+        cp VERSION /home/opendsp/
+
+        # remount file system for read only
+        mount -o remount,ro / || true
+        sleep 1
+
+        echo -e "OpenDSP updated!"
+
+        echo -e "Starting OpenDSP service..."
+        systemctl start opendsp
+    fi
+
+    # clear update files
+    cd ..
+    rm -rf opendspd-master/ || true
+    rm master.zip || true
+
 else
-    echo -e "Your opendspd daemon is outdated. initing update process!"
-
-    # remount file system for write pruporse
-    mount -o remount,rw / || true
-    sleep 1
-
-    echo -e "updating tools..."
-    cp tools/bin/* /usr/bin/
-    echo -e "updating openbox..."
-    cp -r tools/openbox /home/opendsp/.config/
-    echo -e "updating services..."
-    cp services/* /etc/systemd/system/
-    systemctl daemon-reload
-    echo -e "updating skels..."
-    cp -r skel/* /etc/skel/opendsp/
-    echo -e "updating opendspd..."
-    cp -r src/opendspd/* /usr/lib/python3.8/site-packages/opendspd/
-    cp data/mod/ecosystem.cfg /home/opendsp/data/mod/
-    cp VERSION /home/opendsp/
-
-    # remount file system for read only
-    mount -o remount,ro / || true
-    sleep 1
-
-    read -p "OpenDSP updated! Press enter to exit."
+    echo -e "We got troubles trying to download the update... maybe my clock is outdated? $ date"
 fi
 
-# clear update files
-cd ..
-rm -rf opendspd-master/ || true
-rm master.zip || true
+read -p "Press enter to exit."
