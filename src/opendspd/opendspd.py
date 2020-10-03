@@ -390,7 +390,6 @@ class Core():
         return subprocess.Popen(call, env=environment, preexec_fn=os.setsid)
 
     def stop_proc(self, proc):
-        os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
         proc.terminate()
 
     def call(self, call, env=False):

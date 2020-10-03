@@ -61,7 +61,7 @@ class JackdInterface():
             self.opendsp.set_cpu("jackd", self.sys_config['cpu'])
         # set realtime priority
         if 'realtime' in self.sys_config:
-            self.opendsp.set_realtime("jackd", priority)
+            self.opendsp.set_realtime("jackd", 8)
 
         # start jack client
         self.client = jack.Client('opendsp_jack')
@@ -93,8 +93,9 @@ class JackdInterface():
                     logging.error("error on auto connection: {message}"
                                   .format(message=e))
             else:
-                logging.info("connect handler looking for origin({port_origin}) and dest({port_dest})"
-                             .format(port_origin=ports['origin'], port_dest=ports['dest']))
+                #logging.info("connect handler looking for origin({port_origin}) and dest({port_dest})"
+                #             .format(port_origin=ports['origin'], port_dest=ports['dest']))
+                pass
         # return connections made successfully
         return [ports for ports in connections_pending if ports not in connections_made]
 
