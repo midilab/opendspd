@@ -20,7 +20,7 @@ if [ -f "/tmp/master.zip" ]; then
     LOCAL_VERSION=$(cat /home/opendsp/VERSION)
     # compare local version with remote to proceed with update...
     if [[ "$REPO_VERSION" == "$LOCAL_VERSION" ]]; then
-        read -p "Your opendsp daemon is up-to-date. Press enter to exit."
+        echo -e "Your opendsp daemon is up-to-date"
     else
         read -p "Your opendspd daemon is outdated at $LOCAL_VERSION. Press enter to update at $REPO_VERSION"
 
