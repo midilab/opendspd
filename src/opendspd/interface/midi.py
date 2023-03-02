@@ -115,9 +115,9 @@ class MidiInterface():
         self.port_add('midiRT:out_16', 'OpenDSP:in_1')
 
         # virtual midi output port for generic usage
-        self.midi_out = rtmidi.MidiOut()
+        self.midi_out = rtmidi.RtMidiOut()
         # creates alsa_midi:RtMidiOut Client opendsp (out)
-        self.midi_out.open_virtual_port("opendsp")
+        self.midi_out.openVirtualPort("opendsp")
         # add to state
         #self.port_add('alsa_midi:RtMidiOut', 'midiRT:in_1')
 

@@ -461,14 +461,14 @@ class Core():
 
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
-        #subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
+        #subprocess.run(['/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
         # move irq threads to opendsp system cpu
-        subprocess.run(['/usr/bin/bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
+        subprocess.run(['/bin/bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
         pass
 
     def machine_setup(self):
         # set main PCM to max gain volume
-        subprocess.run(['/bin/amixer', 'sset', 'PCM,0', '100%'])
+        subprocess.run(['/usr/bin/amixer', 'sset', 'PCM,0', '100%'])
 
     def update_run_data(self):
         """updates /var/tmp/opendsp-run-data:

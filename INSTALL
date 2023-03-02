@@ -2,8 +2,8 @@ pip install -r requirements.txt
 pacman -S base-devel cmake git
 
 # arch linux
-sudo pip2 install psutil Cython
-sudo pip2 install pyliblo
+sudo pip3 install psutil Cython
+sudo pip3 install pyliblo
 
 # debian and ubuntu based
-sudo apt-get install python2-psutil mididings python2-mididings
+sudo apt-get install python3-psutil mididings python3-mididings
