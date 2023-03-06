@@ -319,37 +319,33 @@ class Core():
     def stop_display(self, display='native'):
         if display == 'native':
             # stop native display service
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'stop', 'display'])
+            subprocess.call(['sudo', 'systemctl', 'stop', 'display'], shell=False, env=None)
             self.display['native'] = False
 
         if display == 'virtual':
             # stop virtual display service
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'stop', 'vdisplay'])
+            subprocess.call(['sudo', 'systemctl', 'stop', 'vdisplay'], shell=False, env=None)
             self.display['virtual'] = False
 
     def start_display(self, display='native'):
         # native display init
         if display == 'native':
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'start', 'display'])
+            subprocess.call(['sudo', 'systemctl', 'start', 'display'], shell=False, env=None)
             # wait display to get up...
             while "Xorg" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
             try:
                 # avoid screen auto shutoff
-                subprocess.run(['/usr/bin/xset', 's', 'off'])
-                subprocess.run(['/usr/bin/xset', '-dpms'])
-                subprocess.run(['/usr/bin/xset', 's', 'noblank'])
+                subprocess.call(['xset', 's', 'off'], shell=False, env=None)
+                subprocess.call(['xset', '-dpms'], shell=False, env=None)
+                subprocess.call(['xset', 's', 'noblank'], shell=False, env=None)
             except:
                 pass
             self.display['native'] = True
 
         # virtual display init
         if display == 'virtual':
-            subprocess.run(['/sbin/sudo',
-                            '/sbin/systemctl', 'start', 'vdisplay'])
+            subprocess.call(['sudo', 'systemctl', 'start', 'vdisplay'], shell=False, env=None)
             # wait virtual display to get up...
             while "Xvfb" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
@@ -397,8 +393,7 @@ class Core():
         subprocess.run(call, env=environment, shell=True, check=True)
 
     def set_limits(self, pid, limits):
-        subprocess.call(['/sbin/sudo',
-                         '/sbin/prlimit', '--pid', str(pid), limits])
+        subprocess.call(['sudo', 'prlimit', '--pid', str(pid), limits], shell=False, env=None)
 
     def set_cpu(self, rt_process, cpu):
         """
@@ -442,13 +437,10 @@ class Core():
                         if pid not in self.rt_proc[proc]['list']:
                             if 'cpu' in self.rt_proc[proc]:
                                 # set process cpu afinity
-                                subprocess.call(['/sbin/sudo', '/sbin/taskset', '-a', '-p', '-c', str(self.rt_proc[proc]['cpu']), str(pid)], shell=False)
+                                subprocess.call(['sudo', 'taskset', '-a', '-p', '-c', str(self.rt_proc[proc]['cpu']), str(pid)], shell=False, env=None)
                             if 'priority' in self.rt_proc[proc]:
                                 # priority
-                                subprocess.call(['/sbin/sudo',
-                                                '/sbin/chrt', '-a', '-f',
-                                                '-p', str(self.rt_proc[proc]['priority']),
-                                                str(pid)])
+                                subprocess.call(['sudo', 'chrt', '-a', '-f', '-p', str(self.rt_proc[proc]['priority']), str(pid)], shell=False, env=None)
                             # add to list of handled pids
                             self.rt_proc[proc]['list'].append(pid)
         except Exception as e:
@@ -457,18 +449,18 @@ class Core():
 
     def restart(self):
         self.running = False
-        subprocess.run(['/sbin/sudo', '/sbin/systemctl', 'restart', 'opendsp'])
+        subprocess.call(['sudo', 'systemctl', 'restart', 'opendsp'], shell=False, env=None)
 
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
-        #subprocess.run(['/bin/bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"])
+        subprocess.call(['bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"], shell=False, env=None)
         # move irq threads to opendsp system cpu
-        subprocess.run(['/bin/bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)])
+        subprocess.call(['bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)], shell=False, env=None)
         pass
 
     def machine_setup(self):
         # set main PCM to max gain volume
-        subprocess.run(['/usr/bin/amixer', 'sset', 'PCM,0', '100%'])
+        subprocess.call(['amixer', 'sset', 'PCM,0', '100%'], shell=False, env=None)
 
     def update_run_data(self):
         """updates /var/tmp/opendsp-run-data:
@@ -505,9 +497,9 @@ class Core():
 
     def mount_fs(self, fs, action):
         if 'write'in action:
-            subprocess.run(['/sbin/sudo', '/bin/mount', '-o', 'remount,rw', fs])
+            subprocess.call(['sudo', 'mount',  '-o', 'remount,rw', fs], shell=False, env=None)
         elif 'read' in action:
-            subprocess.run(['/sbin/sudo', '/bin/mount', '-o', 'remount,ro', fs])
+            subprocess.call(['sudo', 'mount',  '-o', 'remount,ro', fs], shell=False, env=None)
 
     def check_updates(self):
         """We check updates in 10 subcycles
@@ -522,13 +514,13 @@ class Core():
                 # mount filesystem in rw mode
                 self.mount_fs("/", "write")
                 # install package
-                subprocess.call(['/sbin/sudo',
+                subprocess.call(['/usr/bin/sudo',
                                  '/sbin/pacman',
                                  '--noconfirm',
                                  '-U',
                                  path_package])
                 # any systemd changes?
-                subprocess.call(['/sbin/sudo',
+                subprocess.call(['/usr/bin/sudo',
                                  '/sbin/systemctl',
                                  'daemon-reload',
                                  path_package])

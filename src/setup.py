@@ -1,8 +1,8 @@
 import setuptools
 
 setuptools.setup(
-    name="opendsp",
-    version="0.10.2",
+    name="opendspd",
+    version="0.10.3",
     description="DSP interface service for headless devices",
     author_email="contact@midilab.co",
     long_description="...",
