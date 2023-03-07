@@ -256,8 +256,9 @@ class Core():
 
             # fallback default configuration in case user miss something
             default = {
-                'audio': { 'rate': '48000', 'period': '6', 'buffer': '256', 'hardware': 'hw:0,0' },
-                'system': { 'cpu': '1', 'realtime': '90', 'display': 'native, virtual' },
+                'audio': { 'rate': '48000', 'period': '6', 'buffer': '1024', 'hardware': 'hw:0,0' },
+            #    'system': { 'cpu': '1', 'realtime': '90', 'display': 'native, virtual' },
+                'system': { 'display': 'native, virtual' },
                 'mod': { 'name': 'blank' },
                 'osc': { 'port': '8000' }
             }
