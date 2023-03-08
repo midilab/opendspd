@@ -45,12 +45,12 @@ if __name__ == '__main__':
     menu += "<separator label=\"Tools\"/>"
     # global change password
     menu += "<item label=\"Change password\">"
-    menu += "<action name=\"Execute\"><command>urxvt -e changepassword</command></action>"
+    menu += "<action name=\"Execute\"><command>rxvt -e changepassword</command></action>"
     menu += "</item>"
     # resizesd 
     if os.path.exists("/usr/bin/resizesd"):
         menu += "<item label=\"Resize SD user data\">"
-        menu += "<action name=\"Execute\"><command>sudo urxvt -e sudo /usr/bin/resizesd</command></action>"
+        menu += "<action name=\"Execute\"><command>sudo rxvt -e sudo /usr/bin/resizesd</command></action>"
         menu += "</item>"
     menu += "</menu>"
 
@@ -59,11 +59,11 @@ if __name__ == '__main__':
     menu += "<separator label=\"Updates\"/>"
     # opendspd
     menu += "<item label=\"OpenDSP Daemon\">"
-    menu += "<action name=\"Execute\"><command>sudo urxvt -e /usr/bin/opendspd-update</command></action>"
+    menu += "<action name=\"Execute\"><command>sudo rxvt -e /usr/bin/opendspd-update</command></action>"
     menu += "</item>"
     # vlc youtube script to stream play update(look mom! no ads!)
     menu += "<item label=\"VLC Youtube\">"
-    menu += "<action name=\"Execute\"><command>sudo urxvt -e /usr/bin/vlc-youtube-update</command></action>"
+    menu += "<action name=\"Execute\"><command>sudo rxvt -e /usr/bin/vlc-youtube-update</command></action>"
     menu += "</item>"
     menu += "</menu>"
 

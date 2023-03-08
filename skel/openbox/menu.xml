@@ -18,7 +18,7 @@
         <menu id="maintenance" label="Maintenance">
             <separator label="Maintenance"/>
             <item label="Terminal"> <action name="Execute">
-                <execute>urxvt</execute>
+                <execute>rxvt</execute>
             </action> </item> 
             <separator/>
             <item label="Restart"> <action name="Execute">

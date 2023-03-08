@@ -11,7 +11,6 @@ ExecStartPre=/bin/bash -c "/usr/bin/xinit -- /usr/bin/Xvfb :1 -screen 0 1280x720
 ExecStart=/bin/bash -c "/usr/bin/x11vnc -display :1 -rfbauth /home/opendsp/.vnc/passwd -norc -forever -shared -bg -autoport 5900 &"
 Restart=on-failure
 RestartSec=5
-WorkingDirectory=/home/opendsp/
 
 [Install]
 WantedBy=multi-user.target
