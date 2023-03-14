@@ -333,7 +333,7 @@ class Core():
         if display == 'native':
             subprocess.call(['sudo', 'systemctl', 'start', 'display'], shell=False, env=None)
             # wait display to get up...
-            while "Xorg" not in (p.name() for p in psutil.process_iter()):
+            while "X" not in (p.name() for p in psutil.process_iter()):
                 time.sleep(1)
             try:
                 # avoid screen auto shutoff
