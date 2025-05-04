@@ -81,7 +81,7 @@ class MidiInterface():
 
     def start(self):
         # start a2jmidid to bridge midi data
-        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-u'])
+        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-eu'])
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
             self.opendsp.set_cpu("a2jmidid", self.opendsp.config['system']['system']['cpu'])
@@ -118,25 +118,46 @@ class MidiInterface():
         self.midi_out = rtmidi.RtMidiOut()
         # creates alsa_midi:RtMidiOut Client opendsp (out)
         self.midi_out.openVirtualPort("opendsp")
-        # add to state
-        #self.port_add('alsa_midi:RtMidiOut', 'midiRT:in_1')
 
-        # start on-board midi? (only if your hardware has onboard serial uart)
-        if 'midi' in self.opendsp.config['system']:
-            # run on background
-            self.proc['onboard'] = self.opendsp.start_proc(['/usr/bin/ttymidi',
-                                                            '-s', self.opendsp.config['system']['midi']['device'],
-                                                            '-b', self.opendsp.config['system']['midi']['baudrate']])
-            
-            # set cpu afinnity
-            if 'cpu' in self.opendsp.config['system']['system']:
-                self.opendsp.set_cpu("ttymidi", self.opendsp.config['system']['system']['cpu'])
-            # set it +4 for realtime priority
-            if 'realtime' in self.opendsp.config['system']['system']:
-                self.opendsp.set_realtime("ttymidi", 4)
+        if self.opendsp.config['system'].has_section('midi'):
 
-            # add to state
-            self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
+            # start on-board uart to midi? (only if your hardware has onboard serial uart)
+            if self.opendsp.config['system']['midi'].getboolean('onboard-uart', fallback=False):
+                # run on background
+                self.proc['onboard'] = self.opendsp.start_proc(['/usr/bin/ttymidi',
+                                                                '-s', self.opendsp.config['system']['midi']['device'],
+                                                                '-b', self.opendsp.config['system']['midi']['baudrate']])
+
+                # set cpu afinnity
+                if 'cpu' in self.opendsp.config['system']['system']:
+                    self.opendsp.set_cpu("ttymidi", self.opendsp.config['system']['system']['cpu'])
+                # set it +4 for realtime priority
+                if 'realtime' in self.opendsp.config['system']['system']:
+                    self.opendsp.set_realtime("ttymidi", 4)
+
+                # add to state
+                self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
+
+            # start on-board midi? (only if your hardware has onboard midi)
+            if self.opendsp.config['system']['midi'].getboolean('onboard-midi', fallback=False):
+                # Check if 'auto-connect' key exists within the midi section
+                auto_connect_str = self.opendsp.config['system']['midi'].get('auto-connect', '')
+                if auto_connect_str: # Proceed only if the string is not empty
+                    logging.info(f"Processing auto-connect MIDI ports: {auto_connect_str}")
+                    # Split the string by comma, trim whitespace for each port
+                    ports_to_connect = [port.strip() for port in auto_connect_str.split(',') if port.strip()]
+
+                    if not ports_to_connect:
+                        logging.warning("auto-connect string found but contains no valid port names after parsing.")
+                    else:
+                        # Loop through the parsed port names and add connections
+                        for port in ports_to_connect:
+                            logging.debug(f"Adding connection from config: {port} -> midiRT:in_1")
+                            # Use the existing port_add method
+                            self.port_add(port, 'midiRT:in_1')
+                else:
+                    # Log if onboard-midi is true but auto-connect is missing or empty
+                    logging.info("Onboard MIDI enabled, but 'auto-connect' option is missing or empty in [midi] section.")                    #
 
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:
@@ -204,7 +225,7 @@ class MidiInterface():
                     project = self.opendsp.mod.get_project_by_idx(self.midi_register['project_id'])
                     if project is not None:
                         self.opendsp.mod.load_project(project)
-                return            
+                return
 
             # OpenDSP manage
             if event.ctrl == 83:
@@ -269,5 +290,6 @@ class MidiInterface():
         create a new connection state to handle
         """
         connection = {'origin': origin, 'dest': dest}
+        logging.debug(f"connecting: {origin} ->  {dest}")
         self.connections.append(connection)
         self.connections_pending.append(connection)
