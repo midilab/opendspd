@@ -66,7 +66,7 @@ class Core():
         # state attributes
         self.path_data = path_data
         self.updates_counter = 0
-        # rt process 
+        # rt process
         self.rt_proc = {}
 
         # setup signal handling
@@ -116,7 +116,7 @@ class Core():
             audio_config.update(self.config['mod']['audio'])
         self.jackd = JackdInterface(self, audio_config)
         self.jackd.start()
-                
+
         logging.info('Initing OSC Interface')
         self.osc = OscInterface(self)
         self.osc.start()
@@ -124,6 +124,18 @@ class Core():
         logging.info('Initing MIDI Interface')
         self.midi = MidiInterface(self)
         self.midi.start()
+
+        # any system tasks to run before start?
+        if 'init' in self.config['system']['system']:
+            init_commands_str = self.config['system']['system'].get('init', fallback='')
+            if init_commands_str:
+                logging.info("Running initialization commands from system config")
+                parsed_commands = [cmd.strip().split() for cmd in init_commands_str.split(',')]
+                for cmd in parsed_commands:
+                    logging.info(f"Running {cmd}")
+                    subprocess.call(cmd, shell=False, env=None)
+            else:
+                logging.info("No initialization commands found in system config [system]init.")
 
         logging.info('OpenDSP init completed!')
 
@@ -231,7 +243,7 @@ class Core():
     def save_system(self):
         system_file = "{}/system.cfg".format(self.path_data)
         with open(system_file, 'w') as sys_config:
-            self.config["system"].write(sys_config)        
+            self.config["system"].write(sys_config)
 
     def save_mod(self):
         mod_file = "{}/mod/{}/mod.cfg".format(self.path_data, self.config['system']['mod']['name'])
@@ -300,7 +312,7 @@ class Core():
                 for display in config['mod']['display'].split(","):
                     display_mod.add(display.strip())
 
-        # parse [system] global config 
+        # parse [system] global config
         # display without app request
         if 'display' in self.config['system']['system']:
             for display in self.config['system']['system']['display'].split(","):
@@ -407,7 +419,7 @@ class Core():
         rt_process = rt_process.replace('"', '')
         if rt_process not in self.rt_proc:
             self.rt_proc[rt_process] = {}
-            self.rt_proc[rt_process]['list'] = [] 
+            self.rt_proc[rt_process]['list'] = []
         self.rt_proc[rt_process]['cpu'] = cpu
 
     def set_realtime(self, rt_process, inc=0):
@@ -421,7 +433,7 @@ class Core():
         rt_process = rt_process.replace('"', '')
         if rt_process not in self.rt_proc:
             self.rt_proc[rt_process] = {}
-            self.rt_proc[rt_process]['list'] = [] 
+            self.rt_proc[rt_process]['list'] = []
         prio = int(self.config['system']['system']['realtime'])+inc
         if prio > 99:
             prio = 99
