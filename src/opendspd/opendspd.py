@@ -349,9 +349,10 @@ class Core():
                 time.sleep(1)
             try:
                 # avoid screen auto shutoff
-                subprocess.call(['xset', 's', 'off'], shell=False, env=None)
-                subprocess.call(['xset', '-dpms'], shell=False, env=None)
-                subprocess.call(['xset', 's', 'noblank'], shell=False, env=None)
+                environment = { "DISPLAY": ":0" }
+                subprocess.call(['xset', 's', 'off'], shell=False, env=environment)
+                subprocess.call(['xset', '-dpms'], shell=False, env=environment)
+                subprocess.call(['xset', 's', 'noblank'], shell=False, env=environment)
             except:
                 pass
             self.display['native'] = True
