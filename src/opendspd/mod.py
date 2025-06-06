@@ -18,6 +18,7 @@
 import os
 import time
 import threading
+import subprocess
 import glob
 import logging
 
@@ -34,6 +35,10 @@ class Mod:
         self.config = config_mod
         # ecosystem are all the applications avaliable to load into mod
         self.ecosystem = ecosystem
+        # automations for app init
+        self.init_map = {}
+        # loaded apps midi_map dict
+        self.midi_map = {}
         # App objects map
         self.app = {}
         # the main app
@@ -80,11 +85,25 @@ class Mod:
                 self.app[app_id] = app.App(config, config_app, connections, self.path, self.opendsp)
                 self.app[app_id].start()
 
+        # creates midi_map
+        self.create_midi_map()
+
+        # any init command to automate?
+        self.create_init_map()
+
         # thread the run method until we're dead
         self.thread = threading.Thread(target=self.run,
                                        daemon=True,
                                        args=())
         self.thread.start()
+
+        # Run init commands for all apps after loading the project
+        # wait a bit since not all apps should be fully initialized
+        # TODO: implement a watch solution instead for init and close
+        time.sleep(10)
+        for app_id in self.init_map:
+            for cmd in self.init_map[app_id]:
+                self.run_map_action(cmd, app_id=app_id)
 
     def run(self):
         self.running = True
@@ -93,6 +112,37 @@ class Mod:
             self.connection_handler()
             self.check_health()
             time.sleep(5)
+
+    def run_map_action(self, action, app_id=None):
+        """
+        Runs a single mapped action command
+        Based on xdotool - Read the manual
+        """
+        if app_id is None or not hasattr(self, 'opendsp') or self.opendsp.mod is None:
+            logging.warning("No app_id provided or mod not loaded")
+            return
+        #
+        env_display = 0
+        if 'display' in self.app[app_id].config:
+            if self.app[app_id].config['display'] == 'virtual':
+                env_display = 1
+        environment = { "DISPLAY": f":{env_display}" }
+
+        # Normalize input to list format
+        if isinstance(action, str):
+            cmd = ["xdotool"] + action.strip().split()
+        elif isinstance(action, list):
+            cmd = ["xdotool"] + action
+        else:
+            logging.error(f"Invalid action type: {type(action)}")
+            return
+
+        # Run command with proper environment
+        try:
+            logging.debug(f"Running xdotool command: {' '.join(cmd)} [DISPLAY={env_display}]")
+            subprocess.call(cmd, shell=False, env=environment)
+        except Exception as e:
+            logging.error(f"Failed to run command for app {app_id}: {cmd}, error: {e}")
 
     def load_project(self, project):
         # only load projects if we have a main app setup
@@ -154,6 +204,50 @@ class Mod:
         # parse id requests only for now...
         return {option: config[option].replace('<id>', app_id)
                 for option in config}
+
+    def create_midi_map(self):
+        """
+        Pre-process all midi_map entries from apps into a single flat dict:
+            {'cc34': [{'app_id': 'app1', 'cmd': 'key f'}, ...], ...}
+        """
+        self.midi_map = {}
+
+        for app_id in self.app:
+            app = self.app[app_id]
+            if hasattr(app, 'config') and 'midi_map' in app.config:
+                lines = [line.strip() for line in app.config['midi_map'].split(',') if line.strip()]
+                for line in lines:
+                    if ':' in line:
+                        cc_part, cmd = line.split(':', 1)
+                        cc_key = cc_part.strip().lower()
+                        # Split multiple cmds per CC
+                        cmds = [c.strip() for c in cmd.split(',') if c.strip()]
+                        for c in cmds:
+                            entry = {'app_id': app_id, 'cmd': c}
+                            if cc_key not in self.midi_map:
+                                self.midi_map[cc_key] = []
+                            self.midi_map[cc_key].append(entry)
+
+    def create_init_map(self):
+        """
+        Creates a map of initialization commands grouped by app_id.
+
+        Example:
+            {
+                'app1': ['key g', 'key ctrl+c'],
+                'app2': ['key f']
+            }
+        """
+        self.init_map = {}
+
+        # Iterate over all apps in the mod
+        for app_id in self.app:
+            app = self.app[app_id]
+            if hasattr(app, 'config') and 'init' in app.config:
+                # Split init line by commas and strip whitespace
+                lines = [line.strip() for line in app.config['init'].split(',') if line.strip()]
+                if lines:
+                    self.init_map[app_id] = lines
 
     def parse_conn(self, conn_string):
         connections = conn_string.replace('"', '')

@@ -182,6 +182,19 @@ class MidiInterface():
             # change mod action (double press to trigger?)
             # change project action (double press to trigger?)
 
+            # Dynamic CC handler using pre-parsed midi_map with app_id
+            if self.opendsp.mod is not None:
+                cc_key = f"cc{event.ctrl}"
+                if cc_key in self.opendsp.mod.midi_map:
+                    for entry in self.opendsp.mod.midi_map[cc_key]:
+                        app_id = entry['app_id']
+                        cmd = entry['cmd']
+                        if app_id in self.opendsp.mod.app:
+                            self.opendsp.mod.run_map_action(cmd, app_id=app_id)
+                        else:
+                            logging.warning(f"App {app_id} not found for CC {cc_key}")
+                    return
+
             # MOD manage: 3 CCs, 2 interfaces
             if event.ctrl == 79:
                 # change mod by value
