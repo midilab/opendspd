@@ -81,7 +81,7 @@ class MidiInterface():
 
     def start(self):
         # start a2jmidid to bridge midi data
-        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-eu'])
+        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-u'])
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
             self.opendsp.set_cpu("a2jmidid", self.opendsp.config['system']['system']['cpu'])
@@ -104,12 +104,13 @@ class MidiInterface():
         self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
                                                           '-R', '-c', 'midiRT', '-o', '16', rules])
 
+        # it should be mididings but at process list name appears as python3
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
-            self.opendsp.set_cpu("mididings", self.opendsp.config['system']['system']['cpu'])
+            self.opendsp.set_cpu("python3", self.opendsp.config['system']['system']['cpu'])
         # set it +4 for realtime priority
         if 'realtime' in self.opendsp.config['system']['system']:
-            self.opendsp.set_realtime("mididings", 4)
+            self.opendsp.set_realtime("python3", 4)
 
         # channel 16 are mean to control opendsp interface
         self.port_add('midiRT:out_16', 'OpenDSP:in_1')
@@ -138,8 +139,8 @@ class MidiInterface():
                 # add to state
                 self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
 
-            # start on-board midi? (only if your hardware has onboard midi)
-            if self.opendsp.config['system']['midi'].getboolean('onboard-midi', fallback=False):
+            # any auto connection?
+            if 'auto-connect' in self.opendsp.config['system']['midi']:
                 # Check if 'auto-connect' key exists within the midi section
                 auto_connect_str = self.opendsp.config['system']['midi'].get('auto-connect', '')
                 if auto_connect_str: # Proceed only if the string is not empty
@@ -280,9 +281,12 @@ class MidiInterface():
         """Hid Lookup
         take cares of user on the fly
         hid devices connections
+        /dev/midi*
+        /dev/snd/midi*
         """
         # to use jamrouter we need to disable -Xseq on jackd or make aj2midid not make use of hardware devices -u only
         new_devices = [device for device in glob.glob("/dev/midi*") if device not in self.devices]
+        new_devices += [device for device in glob.glob("/dev/snd/midi*") if device not in self.devices]
         # get new devices up and running
         for device in new_devices:
             priority = int(self.opendsp.config['system']['system']['realtime'])+4

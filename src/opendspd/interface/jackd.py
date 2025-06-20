@@ -49,14 +49,14 @@ class JackdInterface():
                                                       '-R',
                                                       '-P' + str(priority),
                                                       '-t2000',
+                                                      '-S',
                                                       '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
-                                                      '-n', self.config['period'],
-                                                      '-S'])
+                                                      '-n', self.config['period']])
 
-        # set cpu afinnity? 
+        # set cpu afinnity?
         if 'cpu' in self.sys_config:
             self.opendsp.set_cpu("jackd", self.sys_config['cpu'])
         # set realtime priority

@@ -415,7 +415,7 @@ class Core():
         https://www.kernel.org/doc/Documentation/timers/NO_HZ.txt
         """
         # only if realtime feature is configured to be used
-        if 'realtime' not in self.config['system']['system'] and 'cpu' not in self.config['system']['system']:
+        if 'cpu' not in self.config['system']['system']:
             return
         rt_process = rt_process.replace('"', '')
         if rt_process not in self.rt_proc:
@@ -445,7 +445,7 @@ class Core():
             # read pgrep process and compare those ones already setup from the new ones...
             for proc in self.rt_proc:
                 # pgrep to find all process and childs to setup realtime
-                pid_list = subprocess.check_output(['pgrep', proc]).decode()
+                pid_list = subprocess.check_output(['pgrep', '-w', proc]).decode()
                 for pid in pid_list.split('\n'):
                     if len(pid) > 0:
                         if pid not in self.rt_proc[proc]['list']:
@@ -468,9 +468,25 @@ class Core():
     def set_tickless(self, cpus):
         # unload rcu from isolated cpus
         subprocess.call(['bash', '-c', "for i in `pgrep rcu` ; do sudo taskset -apc 0 $i ; done"], shell=False, env=None)
-        # move irq threads to opendsp system cpu
+        # first move all non irq threads to non isoleted core
         subprocess.call(['bash', '-c', "for i in `pgrep irq` ; do sudo taskset -apc {} $i ; done".format(cpus)], shell=False, env=None)
-        pass
+        # testing out some ideas, idealy it should be configurable via system.cfg for each system
+        # move snd cards irq threads to opendsp system cpu
+        snd_irq = subprocess.check_output(['pgrep', '-f', 'irq/.*snd']).decode().strip()
+        subprocess.call(['sudo', 'taskset', '-a', '-p', '-c', '1', snd_irq], shell=False, env=None)
+        subprocess.call(['sudo', 'chrt', '-a', '-f', '-p', '99', snd_irq], shell=False, env=None)
+        # USB controllers (for USB audio option)
+        #"irq/16-ehci" p 90
+        #"irq/29-xhci" p 90
+        # Timer (essential for system) p 80
+        #"irq/0-timer"
+        rtc_irq = subprocess.check_output(['pgrep', '-f', 'irq/.*rtc']).decode().strip()
+        subprocess.call(['sudo', 'taskset', '-a', '-p', '-c', '0', rtc_irq], shell=False, env=None)
+        subprocess.call(['sudo', 'chrt', '-a', '-f', '-p', '80', rtc_irq], shell=False, env=None)
+        # ACPI (power management) p 70
+        acpi_irq = subprocess.check_output(['pgrep', '-f', 'irq/.*acpi']).decode().strip()
+        subprocess.call(['sudo', 'taskset', '-a', '-p', '-c', '0', acpi_irq], shell=False, env=None)
+        subprocess.call(['sudo', 'chrt', '-a', '-f', '-p', '70', acpi_irq], shell=False, env=None)
 
     def machine_setup(self):
         # set main PCM to max gain volume
