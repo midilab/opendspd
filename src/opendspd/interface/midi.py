@@ -98,9 +98,14 @@ class MidiInterface():
                                                     args=())
         self.thread['processor'].start()
 
+        force_channel = self.opendsp.config['system']['midi'].getboolean('midi-spliter-force-channel', fallback="0")
         if self.opendsp.config['system']['midi'].getboolean('midi-spliter', fallback=False):
-            channel_list = ", ".join(["{chn}: Channel(1) >> Port({chn})".format(chn=channel)
-                                      for channel in range(1, 17)])
+            if force_channel == "0":
+                channel_list = ", ".join(["{chn}: Channel({chn}) >> Port({chn})".format(chn=channel)
+                                        for channel in range(1, 17)])
+            else:
+                channel_list = ", ".join(["{chn}: Channel({force}) >> Port({chn})".format(chn=channel, force=force_channel)
+                                        for channel in range(1, 17)])
             rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
 
             # call mididings and set it realtime alog with jack - named midi
