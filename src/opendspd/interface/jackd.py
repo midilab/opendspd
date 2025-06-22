@@ -73,10 +73,10 @@ class JackdInterface():
         for ports in connections_pending:
             # sanitize special chars from port names
             port_origin = ports['origin'].replace('(', r'\(').replace(')', r'\)')
-            port_origin = ports['dest'].replace('(', r'\(').replace(')', r'\)')
+            port_dest = ports['dest'].replace('(', r'\(').replace(')', r'\)')
             # allow user to regex port expression on jack clients that randon their port names
             origin = [data.name for data in self.client.get_ports(port_origin)]
-            dest = [data.name for data in self.client.get_ports(port_origin)]
+            dest = [data.name for data in self.client.get_ports(port_dest)]
 
             if len(origin) > 0 and len(dest) > 0:
                 # port pair already connected? append it to connections_made
