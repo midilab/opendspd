@@ -54,6 +54,7 @@ class MidiInterface():
         # all procs and threads references managed by opendsp
         self.proc = {}
         self.devices = {}
+        self.devices_port = []
         self.thread = {}
         # midi registers
         self.midi_register = {'mod_id': 0,
@@ -76,12 +77,13 @@ class MidiInterface():
             self.opendsp.stop_proc(self.devices[device])
         del self.devices
         self.devices = {}
+        self.devices_port = []
         # stop threads
         #...
 
     def start(self):
         # start a2jmidid to bridge midi data
-        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-u'])
+        self.proc['a2jmidid'] = self.opendsp.start_proc(['/usr/bin/a2jmidid', '-eu'])
         # set cpu afinnity
         if 'cpu' in self.opendsp.config['system']['system']:
             self.opendsp.set_cpu("a2jmidid", self.opendsp.config['system']['system']['cpu'])
@@ -96,24 +98,25 @@ class MidiInterface():
                                                     args=())
         self.thread['processor'].start()
 
-        channel_list = ", ".join(["{chn}: Channel(1) >> Port({chn})".format(chn=channel)
-                                  for channel in range(1, 17)])
-        rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
+        if self.opendsp.config['system']['midi'].getboolean('midi-spliter', fallback=False):
+            channel_list = ", ".join(["{chn}: Channel(1) >> Port({chn})".format(chn=channel)
+                                      for channel in range(1, 17)])
+            rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
 
-        # call mididings and set it realtime alog with jack - named midi
-        self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
-                                                          '-R', '-c', 'midiRT', '-o', '16', rules])
+            # call mididings and set it realtime alog with jack - named midi
+            self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
+                                                              '-R', '-c', 'midiRT', '-o', '16', rules])
 
-        # it should be mididings but at process list name appears as python3
-        # set cpu afinnity
-        if 'cpu' in self.opendsp.config['system']['system']:
-            self.opendsp.set_cpu("python3", self.opendsp.config['system']['system']['cpu'])
-        # set it +4 for realtime priority
-        if 'realtime' in self.opendsp.config['system']['system']:
-            self.opendsp.set_realtime("python3", 4)
+            # it should be mididings but at process list name appears as python3
+            # set cpu afinnity
+            if 'cpu' in self.opendsp.config['system']['system']:
+                self.opendsp.set_cpu("python3", self.opendsp.config['system']['system']['cpu'])
+            # set it +4 for realtime priority
+            if 'realtime' in self.opendsp.config['system']['system']:
+                self.opendsp.set_realtime("python3", 4)
 
-        # channel 16 are mean to control opendsp interface
-        self.port_add('midiRT:out_16', 'OpenDSP:in_1')
+            # channel 16 are mean to control opendsp interface
+            self.port_add('midiRT:out_16', 'OpenDSP:in_1')
 
         # virtual midi output port for generic usage
         self.midi_out = rtmidi.RtMidiOut()
@@ -121,44 +124,20 @@ class MidiInterface():
         self.midi_out.openVirtualPort("opendsp")
 
         if self.opendsp.config['system'].has_section('midi'):
-
             # start on-board uart to midi? (only if your hardware has onboard serial uart)
             if self.opendsp.config['system']['midi'].getboolean('onboard-uart', fallback=False):
                 # run on background
                 self.proc['onboard'] = self.opendsp.start_proc(['/usr/bin/ttymidi',
                                                                 '-s', self.opendsp.config['system']['midi']['device'],
                                                                 '-b', self.opendsp.config['system']['midi']['baudrate']])
-
                 # set cpu afinnity
                 if 'cpu' in self.opendsp.config['system']['system']:
                     self.opendsp.set_cpu("ttymidi", self.opendsp.config['system']['system']['cpu'])
                 # set it +4 for realtime priority
                 if 'realtime' in self.opendsp.config['system']['system']:
                     self.opendsp.set_realtime("ttymidi", 4)
-
                 # add to state
                 self.port_add('ttymidi:MIDI_in', 'midiRT:in_1')
-
-            # any auto connection?
-            if 'auto-connect' in self.opendsp.config['system']['midi']:
-                # Check if 'auto-connect' key exists within the midi section
-                auto_connect_str = self.opendsp.config['system']['midi'].get('auto-connect', '')
-                if auto_connect_str: # Proceed only if the string is not empty
-                    logging.info(f"Processing auto-connect MIDI ports: {auto_connect_str}")
-                    # Split the string by comma, trim whitespace for each port
-                    ports_to_connect = [port.strip() for port in auto_connect_str.split(',') if port.strip()]
-
-                    if not ports_to_connect:
-                        logging.warning("auto-connect string found but contains no valid port names after parsing.")
-                    else:
-                        # Loop through the parsed port names and add connections
-                        for port in ports_to_connect:
-                            logging.debug(f"Adding connection from config: {port} -> midiRT:in_1")
-                            # Use the existing port_add method
-                            self.port_add(port, 'midiRT:in_1')
-                else:
-                    # Log if onboard-midi is true but auto-connect is missing or empty
-                    logging.info("Onboard MIDI enabled, but 'auto-connect' option is missing or empty in [midi] section.")                    #
 
     def send_message(self, cmd, data1, data2, channel):
         if cmd in self.midi_cmd:
@@ -265,21 +244,42 @@ class MidiInterface():
 
     def processor(self):
         # opendsp midi controlled via program changes and cc messages on channel 16
-        run([PortFilter(1) >> Filter(PROGRAM|CTRL) >> Call(thread=self.midi_queue)])
+        run([PortFilter(16) >> Filter(PROGRAM|CTRL) >> Call(thread=self.midi_queue)])
 
     def handle(self):
         """Midi handler
         called by core on each run cycle
         """
         try:
-            self.lookup()
+            if self.opendsp.config['system']['midi'].getboolean('auto-connect', fallback=False):
+                self.a2j_lookup()
+                # jamrouter is not working as expected, let disable for now
+                #self.jamrouter_lookup()
             self.connections_pending = self.opendsp.jackd.connect(self.connections_pending)
         except Exception as e:
             logging.error("error on midi handle process: {}".format(e))
 
-    def lookup(self):
+    def a2j_lookup(self):
         """Hid Lookup
-        take cares of user on the fly
+        take cares of user
+        hid devices connections
+        via a2j backend
+        """
+        # Get all ports in the system
+        all_ports = self.opendsp.jackd.client.get_ports(is_midi=True, is_output=True, is_input=False, is_audio=False)
+        # Filter ports whose name starts with "a2j:"
+        ports = [port for port in all_ports if port.name.startswith('a2j:') and port.name not in self.devices_port and "opendsp" not in port.name]
+        if ports:
+            logging.info(f"Found {len(ports)} ports for midi backend:")
+            for port in ports:
+                self.port_add(port.name, 'midiRT:in_1')
+                self.devices_port.append(port.name)
+        else:
+            logging.info("No new ports found for midi backend.")
+
+    def jamrouter_lookup(self):
+        """Hid Lookup
+        take cares of user
         hid devices connections
         /dev/midi*
         /dev/snd/midi*
@@ -289,12 +289,14 @@ class MidiInterface():
         new_devices += [device for device in glob.glob("/dev/snd/midi*") if device not in self.devices]
         # get new devices up and running
         for device in new_devices:
-            priority = int(self.opendsp.config['system']['system']['realtime'])+4
+            priority = 40
+            if 'realtime' in self.opendsp.config['system']['system']:
+                priority = int(self.opendsp.config['system']['system']['realtime'])+4
             # search for midi devices
-            self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority), '-j', '-z.06']) # -z.94 max
+            self.devices[device] = self.opendsp.start_proc(['/usr/bin/jamrouter', '-M', 'generic', '-D', device, '-o', 'midiRT:in_1', '-y', str(priority), '-Y', str(priority), '-j', '-u', device]) #  '-z.06', -z.94 max
             # get process name(since jamrouter gets new process each new instance)
-            #process = subprocess.check_output(['/usr/bin/ps', '-p', str(self.devices[device].pid), '-o', 'comm=']).decode()
-            process = 'jamrouter'
+            process = subprocess.check_output(['ps', '-p', str(self.devices[device].pid), '-o', 'comm=']).decode().strip()
+            #process = 'jamrouter'
             # set cpu afinnity
             if 'cpu' in self.opendsp.config['system']['system']:
                 self.opendsp.set_cpu(process, self.opendsp.config['system']['system']['cpu'])

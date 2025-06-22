@@ -48,13 +48,14 @@ class JackdInterface():
         self.proc['jackd'] = self.opendsp.start_proc(['/usr/bin/jackd',
                                                       '-R',
                                                       '-P' + str(priority),
-                                                      '-t2000',
+                                                      #'-t2000',
                                                       '-S',
                                                       '-dalsa',
                                                       '-d', self.config['hardware'],
                                                       '-r', self.config['rate'],
                                                       '-p', self.config['buffer'],
-                                                      '-n', self.config['period']])
+                                                      '-n', self.config['period'],
+                                                      '-s'])
 
         # set cpu afinnity?
         if 'cpu' in self.sys_config:
@@ -70,9 +71,12 @@ class JackdInterface():
     def connect(self, connections_pending):
         connections_made = []
         for ports in connections_pending:
+            # sanitize special chars from port names
+            port_origin = ports['origin'].replace('(', r'\(').replace(')', r'\)')
+            port_origin = ports['dest'].replace('(', r'\(').replace(')', r'\)')
             # allow user to regex port expression on jack clients that randon their port names
-            origin = [data.name for data in self.client.get_ports(ports['origin'])]
-            dest = [data.name for data in self.client.get_ports(ports['dest'])]
+            origin = [data.name for data in self.client.get_ports(port_origin)]
+            dest = [data.name for data in self.client.get_ports(port_origin)]
 
             if len(origin) > 0 and len(dest) > 0:
                 # port pair already connected? append it to connections_made
