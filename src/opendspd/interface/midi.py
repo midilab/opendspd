@@ -98,37 +98,38 @@ class MidiInterface():
                                                     args=())
         self.thread['processor'].start()
 
-        force_channel = self.opendsp.config['system']['midi'].getboolean('midi-spliter-force-channel', fallback="0")
-        if self.opendsp.config['system']['midi'].getboolean('midi-spliter', fallback=False):
-            if force_channel == "0":
-                channel_list = ", ".join(["{chn}: Channel({chn}) >> Port({chn})".format(chn=channel)
-                                        for channel in range(1, 17)])
-            else:
-                channel_list = ", ".join(["{chn}: Channel({force}) >> Port({chn})".format(chn=channel, force=force_channel)
-                                        for channel in range(1, 17)])
-            rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
-
-            # call mididings and set it realtime alog with jack - named midi
-            self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
-                                                              '-R', '-c', 'midiRT', '-o', '16', rules])
-
-            # it should be mididings but at process list name appears as python3
-            # set cpu afinnity
-            if 'cpu' in self.opendsp.config['system']['system']:
-                self.opendsp.set_cpu("python3", self.opendsp.config['system']['system']['cpu'])
-            # set it +4 for realtime priority
-            if 'realtime' in self.opendsp.config['system']['system']:
-                self.opendsp.set_realtime("python3", 4)
-
-            # channel 16 are mean to control opendsp interface
-            self.port_add('midiRT:out_16', 'OpenDSP:in_1')
-
         # virtual midi output port for generic usage
         self.midi_out = rtmidi.RtMidiOut()
         # creates alsa_midi:RtMidiOut Client opendsp (out)
         self.midi_out.openVirtualPort("opendsp")
 
-        if self.opendsp.config['system'].has_section('midi'):
+        if 'midi' in self.opendsp.config['system']:
+            # setup midi spliter?
+            if self.opendsp.config['system']['midi'].getboolean('midi-spliter', fallback=False):
+                force_channel = self.opendsp.config['system']['midi'].getboolean('midi-spliter-force-channel', fallback="0")
+                if force_channel == "0":
+                    channel_list = ", ".join(["{chn}: Channel({chn}) >> Port({chn})".format(chn=channel)
+                                            for channel in range(1, 17)])
+                else:
+                    channel_list = ", ".join(["{chn}: Channel({force}) >> Port({chn})".format(chn=channel, force=force_channel)
+                                            for channel in range(1, 17)])
+                rules = "ChannelSplit({{ {rule_list} }})".format(rule_list=channel_list)
+
+                # call mididings and set it realtime alog with jack - named midi
+                self.proc['mididings'] = self.opendsp.start_proc(['/usr/bin/mididings',
+                                                                '-R', '-c', 'midiRT', '-o', '16', rules])
+
+                # it should be mididings but at process list name appears as python3
+                # set cpu afinnity
+                if 'cpu' in self.opendsp.config['system']['system']:
+                    self.opendsp.set_cpu("python3", self.opendsp.config['system']['system']['cpu'])
+                # set it +4 for realtime priority
+                if 'realtime' in self.opendsp.config['system']['system']:
+                    self.opendsp.set_realtime("python3", 4)
+
+                # channel 16 are mean to control opendsp interface
+                self.port_add('midiRT:out_16', 'OpenDSP:in_1')
+
             # start on-board uart to midi? (only if your hardware has onboard serial uart)
             if self.opendsp.config['system']['midi'].getboolean('onboard-uart', fallback=False):
                 # run on background
